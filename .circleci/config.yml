@@ -72,8 +72,9 @@ jobs:
       - run:
           name: Run and setup container
           command: |
-            pwd
             ls
+            ls /var/www/streambed/image_server/
+            sudo supervisorctl restart nw1
       - store_artifacts:
           path: build
 
