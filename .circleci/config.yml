@@ -63,23 +63,17 @@ jobs:
 
   test-image:
     docker:
-      - image: circleci/node:6.10.3
       - image: plotly/testbed:latest
     working_directory: ~/repo
     steps:
       - checkout
       - attach_workspace:
           at: ~/repo
-      # https://circleci.com/docs/2.0/building-docker-images/
-      - setup_remote_docker
       - run:
           name: Run and setup container
           command: |
-            npm run docker -- run
-            npm run docker -- setup
-      - run:
-          name: Run image tests
-          command: ./.circleci/test.sh image
+            pwd
+            ls
       - store_artifacts:
           path: build
 
