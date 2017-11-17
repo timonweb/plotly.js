@@ -74,8 +74,8 @@ jobs:
           name: Run and setup container
           command: |
             ls
-            ls /var/www/streambed/image_server/
-            sudo supervisorctl restart nw1
+            /var/www/streambed/image_server/start_test_imageserver &
+            wget --server-response --spider --tries=20 --retry-connrefused http://localhost:9010/ping
       - store_artifacts:
           path: build
 
