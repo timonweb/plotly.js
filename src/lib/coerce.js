@@ -18,6 +18,7 @@ var colorscaleNames = Object.keys(require('../components/colorscale/scales'));
 var nestedProperty = require('./nested_property');
 var counterRegex = require('./regex').counter;
 var DESELECTDIM = require('../constants/interactions').DESELECTDIM;
+var wrap180 = require('./angles').wrap180;
 
 exports.valObjectMeta = {
     data_array: {
@@ -177,15 +178,14 @@ exports.valObjectMeta = {
         description: [
             'A number (in degree) between -180 and 180.'
         ].join(' '),
+        // TODO maybe add option for 0 to 360??
+        // e.g. for polar.sector
         requiredOpts: [],
         otherOpts: ['dflt'],
         coerceFunction: function(v, propOut, dflt) {
             if(v === 'auto') propOut.set('auto');
             else if(!isNumeric(v)) propOut.set(dflt);
-            else {
-                if(Math.abs(v) > 180) v -= Math.round(v / 360) * 360;
-                propOut.set(+v);
-            }
+            else propOut.set(wrap180(+v));
         }
     },
     subplotid: {
