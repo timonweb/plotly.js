@@ -576,6 +576,8 @@ ScatterGl.scene = function getScene(container, subplot) {
         scene.draw = function draw() {
             for(var i = 0; i < scene.count; i++) {
                 if(scene.fill2d) scene.fill2d.draw(i);
+            }
+            for(var i = 0; i < scene.count; i++) {
                 if(scene.line2d) {
                     scene.line2d.draw(i);
                 }
@@ -786,7 +788,7 @@ ScatterGl.plot = function plot(container, subplot, cdata) {
         if(scene.fill2d) {
             scene.fillOptions.forEach(function(fillOptions, i) {
                 var cdscatter = cdata[i];
-                if(!cdscatter || !cdscatter[0] || !cdscatter[0].trace) return;
+                if(!fillOptions || !cdscatter || !cdscatter[0] || !cdscatter[0].trace) return;
                 var cd = cdscatter[0];
                 var trace = cd.trace;
                 var stash = cd.t;
