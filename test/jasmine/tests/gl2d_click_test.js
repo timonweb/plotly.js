@@ -465,9 +465,10 @@ describe('@noCI Test gl2d lasso/select:', function() {
     });
 
     var gd;
-    var selectPath = [[103, 193], [113, 193]];
+    var selectPath = [[98, 193], [108, 193]];
+    var selectPath2 = [[118, 193], [128, 193]];
     var lassoPath = [[316, 171], [318, 239], [335, 243], [328, 169]];
-    var lassoPath2 = [[93, 193], [143, 193], [143, 500], [93, 500], [93, 193]];
+    var lassoPath2 = [[98, 193], [108, 193], [108, 500], [98, 500], [98, 193]];
 
     afterEach(function() {
         Plotly.purge(gd);
@@ -522,6 +523,7 @@ describe('@noCI Test gl2d lasso/select:', function() {
 
             return select(selectPath);
         })
+        .then(delay(100))
         .then(function(eventData) {
             assertEventData(eventData, {
                 points: [
@@ -546,6 +548,7 @@ describe('@noCI Test gl2d lasso/select:', function() {
         .then(function() {
             return select(lassoPath2);
         })
+        .then(delay(100))
         .then(function(eventData) {
             assertEventData(eventData, {
                 points: [
@@ -567,8 +570,9 @@ describe('@noCI Test gl2d lasso/select:', function() {
         Plotly.plot(gd, _mock)
         .then(delay(100))
         .then(function() {
-            return select(selectPath);
+            return select(selectPath2);
         })
+        .then(delay(100))
         .then(function(eventData) {
             assertEventData(eventData, {
                 points: [{x: 0.004, y: 12.5}]
