@@ -27,7 +27,8 @@
             ],
             "mode": "lines+markers",
             "type": "scattergl",
-            "yaxis": "y2"
+            "yaxis": "y2",
+            "xaxis": "x2"
         }
     ],
     "layout": {
@@ -35,11 +36,29 @@
         "height": 500,
         "showlegend": false,
         "yaxis": {
-            "side": "left"
+            "side": "right",
+            "tickmode": "array",
+            "ticktext": ["RightZero", "RightOne", "RightTwo"],
+            "tickvals": [0,1,2]
         },
         "yaxis2": {
-            "side": "right",
+            "side": "left",
+            "tickmode": "array",
+            "ticktext": ["LeftZero", "LeftOne", "LeftTwo"],
+            "tickvals": [0,1,2],
             "overlaying": "y"
+        },
+        "xaxis": {
+            "side": "top",
+            "tickmode": "array",
+            "ticktext": ["TopZero", "TopOne", "TopTwo"],
+            "tickvals": [0,1,2]
+        },
+        "xaxis2": {
+            "side": "bottom",
+            "tickmode": "array",
+            "ticktext": ["BottomZero", "BottomOne", "BottomTwo"],
+            "tickvals": [0,1,2]
         }
     }
 }
