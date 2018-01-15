@@ -574,10 +574,11 @@ ScatterGl.scene = function getScene(container, subplot) {
 
         // draw traces in proper order
         scene.draw = function draw() {
-            for(var i = 0; i < scene.count; i++) {
+            var i;
+            for(i = 0; i < scene.count; i++) {
                 if(scene.fill2d) scene.fill2d.draw(i);
             }
-            for(var i = 0; i < scene.count; i++) {
+            for(i = 0; i < scene.count; i++) {
                 if(scene.line2d) {
                     scene.line2d.draw(i);
                 }
