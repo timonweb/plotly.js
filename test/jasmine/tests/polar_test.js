@@ -744,14 +744,16 @@ describe('Test polar interactions:', function() {
         }
 
         function _reset() {
-            return _doubleClick(mid).then(function() {
-                relayoutNumber++;
-                resetNumber++;
+            return delay(100)()
+                .then(function() { return _doubleClick(mid); })
+                .then(function() {
+                    relayoutNumber++;
+                    resetNumber++;
 
-                var extra = '(reset ' + resetNumber + ')';
-                _assertBase(extra);
-                expect(eventCnts.plotly_doubleclick).toBe(resetNumber, 'doubleclick event #' + extra);
-            });
+                    var extra = '(reset ' + resetNumber + ')';
+                    _assertBase(extra);
+                    expect(eventCnts.plotly_doubleclick).toBe(resetNumber, 'doubleclick event #' + extra);
+                });
         }
 
         _plot(fig)
@@ -809,18 +811,7 @@ describe('Test polar interactions:', function() {
         // to activate the radial drag mode
         function _drag(p0, dp) {
             var node = d3.select('.polar > .draglayer > .radialdrag').node();
-            var p1 = [p0[0] + dp[0] / 2, p0[1] + dp[1] / 2];
-            var p2 = [p0[0] + dp[0], p0[1] + dp[1]];
-
-            mouseEvent('mousemove', p0[0], p0[1], {element: node});
-            mouseEvent('mousedown', p0[0], p0[1], {element: node});
-
-            return delay(250)()
-                .then(function() { mouseEvent('mousemove', p1[0], p1[1], {element: document}); })
-                .then(delay(50))
-                .then(function() { mouseEvent('mousemove', p2[0], p2[1], {element: document}); })
-                .then(function() { mouseEvent('mouseup', p2[0], p2[1], {element: document}); })
-                .then(delay(50));
+            return drag(node, dp[0], dp[1], null, p0[0], p0[1], 2);
         }
 
         function _assert(rng, angle, evtRng1, evtAngle, msg) {
@@ -845,13 +836,15 @@ describe('Test polar interactions:', function() {
         }
 
         function _reset() {
-            return _doubleClick([200, 200]).then(function() {
-                resetNumber++;
+            return delay(100)()
+                .then(function() { return _doubleClick([200, 200]); })
+                .then(function() {
+                    resetNumber++;
 
-                var extra = '(reset ' + resetNumber + ')';
-                _assertBase(extra);
-                expect(eventCnts.plotly_doubleclick).toBe(resetNumber, 'doubleclick event #' + extra);
-            });
+                    var extra = '(reset ' + resetNumber + ')';
+                    _assertBase(extra);
+                    expect(eventCnts.plotly_doubleclick).toBe(resetNumber, 'doubleclick event #' + extra);
+                });
         }
 
         _plot(fig)
@@ -918,13 +911,15 @@ describe('Test polar interactions:', function() {
         }
 
         function _reset() {
-            return _doubleClick([200, 200]).then(function() {
-                resetNumber++;
+            return delay(100)()
+                .then(function() { return _doubleClick([200, 200]); })
+                .then(function() {
+                    resetNumber++;
 
-                var extra = '(reset ' + resetNumber + ')';
-                _assertBase(extra);
-                expect(eventCnts.plotly_doubleclick).toBe(resetNumber, 'doubleclick event #' + extra);
-            });
+                    var extra = '(reset ' + resetNumber + ')';
+                    _assertBase(extra);
+                    expect(eventCnts.plotly_doubleclick).toBe(resetNumber, 'doubleclick event #' + extra);
+                });
         }
 
         _plot(fig)
