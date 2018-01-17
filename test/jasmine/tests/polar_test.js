@@ -528,7 +528,7 @@ describe('Test polar interactions:', function() {
     afterEach(destroyGraphDiv);
 
     function _plot(fig) {
-        return Plotly.plot(gd, fig).then(function() {
+        return Plotly.newPlot(gd, fig).then(function() {
             eventNames.forEach(function(k) {
                 eventCnts[k] = 0;
                 gd.on(k, function(d) {
@@ -704,6 +704,9 @@ describe('Test polar interactions:', function() {
     it('should response to drag interactions on plot area', function(done) {
         var fig = Lib.extendDeep({}, require('@mocks/polar_scatter.json'));
 
+        // to avoid dragging on hover labels
+        fig.layout.hovermode = false;
+
         // adjust margins so that middle of plot area is at 300x300
         // with its middle at [200,200]
         fig.layout.width = 400;
@@ -789,6 +792,9 @@ describe('Test polar interactions:', function() {
 
     it('should response to drag interactions on radial drag area', function(done) {
         var fig = Lib.extendDeep({}, require('@mocks/polar_scatter.json'));
+
+        // to avoid dragging on hover labels
+        fig.layout.hovermode = false;
 
         // adjust margins so that middle of plot area is at 300x300
         // with its middle at [200,200]
@@ -879,6 +885,9 @@ describe('Test polar interactions:', function() {
 
     it('should response to drag interactions on angular drag area', function(done) {
         var fig = Lib.extendDeep({}, require('@mocks/polar_scatter.json'));
+
+        // to avoid dragging on hover labels
+        fig.layout.hovermode = false;
 
         // adjust margins so that middle of plot area is at 300x300
         // with its middle at [200,200]
