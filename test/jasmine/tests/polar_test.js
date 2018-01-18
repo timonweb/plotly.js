@@ -532,6 +532,7 @@ describe('Test polar interactions:', function() {
             eventNames.forEach(function(k) {
                 eventCnts[k] = 0;
                 gd.on(k, function(d) {
+                    console.log(k + ' triggered')
                     eventData = d;
                     eventCnts[k]++;
                     Lib.clearThrottle();
@@ -701,7 +702,7 @@ describe('Test polar interactions:', function() {
         .then(done);
     });
 
-    it('@noCI should response to drag interactions on radial drag area', function(done) {
+    it('should response to drag interactions on radial drag area', function(done) {
         var fig = Lib.extendDeep({}, require('@mocks/polar_scatter.json'));
 
         // to avoid dragging on hover labels
@@ -720,10 +721,12 @@ describe('Test polar interactions:', function() {
         // to activate the radial drag mode
         function _drag(p0, dp) {
             var node = d3.select('.polar > .draglayer > .radialdrag').node();
+            console.log('drag start')
             return drag(node, dp[0], dp[1], null, p0[0], p0[1], 2);
         }
 
         function _assert(rng, angle, evtRng1, evtAngle, msg) {
+            console.log('assert')
             expect(gd._fullLayout.polar.radialaxis.range)
                 .toBeCloseToArray(rng, 1, msg + ' - range');
             expect(gd._fullLayout.polar.radialaxis.angle)
@@ -746,8 +749,11 @@ describe('Test polar interactions:', function() {
 
         function _reset() {
             return delay(100)()
-                .then(function() { return _doubleClick([200, 200]); })
+                .then(function() { 
+                    console.log('before doublclick')
+                    return _doubleClick([200, 200]); })
                 .then(function() {
+                    console.log('after doubleclick')
                     resetNumber++;
 
                     var extra = '(reset ' + resetNumber + ')';
