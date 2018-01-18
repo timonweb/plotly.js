@@ -11,6 +11,7 @@
 
 var Registry = require('../../registry');
 var helpers = require('./helpers');
+var sortLegendData = require('./sort_legend_data');
 
 
 module.exports = function getLegendData(calcdata, opts) {
@@ -82,7 +83,8 @@ module.exports = function getLegendData(calcdata, opts) {
         legendData = new Array(lgroupsLength);
 
         for(i = 0; i < lgroupsLength; i++) {
-            ltraces = lgroupToTraces[lgroups[i]];
+            // Sort legend data by legendIndex
+            ltraces = sortLegendData(ltraces);
             legendData[i] = helpers.isReversed(opts) ? ltraces.reverse() : ltraces;
         }
     }
@@ -94,10 +96,13 @@ module.exports = function getLegendData(calcdata, opts) {
             ltraces = lgroupToTraces[lgroups[i]][0];
             legendData[0][helpers.isReversed(opts) ? lgroupsLength - i - 1 : i] = ltraces;
         }
+        // Sort legend data by legendIndex
+        legendData[0] = sortLegendData(legendData[0], helpers.isReversed(opts));
         lgroupsLength = 1;
     }
 
     // needed in repositionLegend
     opts._lgroupsLength = lgroupsLength;
+
     return legendData;
 };
