@@ -701,7 +701,7 @@ describe('Test polar interactions:', function() {
         .then(done);
     });
 
-    it('should response to drag interactions on radial drag area', function(done) {
+    it('@noCI should response to drag interactions on radial drag area', function(done) {
         var fig = Lib.extendDeep({}, require('@mocks/polar_scatter.json'));
 
         // to avoid dragging on hover labels
@@ -785,7 +785,7 @@ describe('Test polar interactions:', function() {
         .then(done);
     });
 
-    it('should response to drag interactions on angular drag area', function(done) {
+    it('@noCI should response to drag interactions on angular drag area', function(done) {
         var fig = Lib.extendDeep({}, require('@mocks/polar_scatter.json'));
 
         // to avoid dragging on hover labels
