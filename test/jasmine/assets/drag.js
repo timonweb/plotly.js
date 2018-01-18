@@ -13,8 +13,6 @@ module.exports = function(node, dx, dy, edge, x0, y0, nsteps) {
     var coords = getNodeCoords(node, edge);
     var fromX = isNumeric(x0) ? x0 : coords.x;
     var fromY = isNumeric(y0) ? y0 : coords.y;
-    var toX = fromX + dx;
-    var toY = fromY + dy;
 
     mouseEvent('mousemove', fromX, fromY, {element: node});
     mouseEvent('mousedown', fromX, fromY, {element: node});
