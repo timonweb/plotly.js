@@ -20,7 +20,16 @@ module.exports = function sortLegendData(legendTraces, reverse) {
 }
 
 function comparelegendIndex(a, b) {
-    var indexGetter = val => val[0].hasOwnProperty('data') && val[0].data.hasOwnProperty('legendIndex') ? val[0].data.legendIndex : -1;
+    var indexGetter = val => {
+        if (val[0].trace.hasOwnProperty('customdata')) {
+            for (let item of val[0].trace.customdata) {
+                if (item.hasOwnProperty('legendIndex')) {
+                    return item.legendIndex;
+                }
+            }
+        };
+        return -1;
+    }
     var aIndex = indexGetter(a);
     var bIndex = indexGetter(b);
     if (aIndex < bIndex) {
