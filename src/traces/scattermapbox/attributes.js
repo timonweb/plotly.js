@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -8,18 +8,19 @@
 
 'use strict';
 
+var hovertemplateAttrs = require('../../plots/template_attributes').hovertemplateAttrs;
+var texttemplateAttrs = require('../../plots/template_attributes').texttemplateAttrs;
 var scatterGeoAttrs = require('../scattergeo/attributes');
 var scatterAttrs = require('../scatter/attributes');
 var mapboxAttrs = require('../../plots/mapbox/layout_attributes');
-var plotAttrs = require('../../plots/attributes');
-var colorbarAttrs = require('../../components/colorbar/attributes');
+var baseAttrs = require('../../plots/attributes');
+var colorScaleAttrs = require('../../components/colorscale/attributes');
 
 var extendFlat = require('../../lib/extend').extendFlat;
 var overrideAll = require('../../plot_api/edit_types').overrideAll;
 
 var lineAttrs = scatterGeoAttrs.line;
 var markerAttrs = scatterGeoAttrs.marker;
-
 
 module.exports = overrideAll({
     lon: scatterGeoAttrs.lon,
@@ -49,6 +50,9 @@ module.exports = overrideAll({
             'these elements will be seen in the hover labels.'
         ].join(' ')
     }),
+    texttemplate: texttemplateAttrs({editType: 'plot'}, {
+        keys: ['lat', 'lon', 'text']
+    }),
     hovertext: extendFlat({}, scatterAttrs.hovertext, {
         description: [
             'Sets hover text elements associated with each (lon,lat) pair',
@@ -70,7 +74,7 @@ module.exports = overrideAll({
 
     connectgaps: scatterAttrs.connectgaps,
 
-    marker: {
+    marker: extendFlat({
         symbol: {
             valType: 'string',
             dflt: 'circle',
@@ -87,19 +91,11 @@ module.exports = overrideAll({
         size: markerAttrs.size,
         sizeref: markerAttrs.sizeref,
         sizemin: markerAttrs.sizemin,
-        sizemode: markerAttrs.sizemode,
-        color: markerAttrs.color,
-        colorscale: markerAttrs.colorscale,
-        cauto: markerAttrs.cauto,
-        cmax: markerAttrs.cmax,
-        cmin: markerAttrs.cmin,
-        autocolorscale: markerAttrs.autocolorscale,
-        reversescale: markerAttrs.reversescale,
-        showscale: markerAttrs.showscale,
-        colorbar: colorbarAttrs,
-
-        // line
+        sizemode: markerAttrs.sizemode
     },
+        colorScaleAttrs('marker')
+        // line
+    ),
 
     fill: scatterGeoAttrs.fill,
     fillcolor: scatterAttrs.fillcolor,
@@ -107,18 +103,27 @@ module.exports = overrideAll({
     textfont: mapboxAttrs.layers.symbol.textfont,
     textposition: mapboxAttrs.layers.symbol.textposition,
 
-    selected: {
-        marker: {
-            opacity: scatterAttrs.selected.marker.opacity
-        }
-    },
-    unselected: {
-        marker: {
-            opacity: scatterAttrs.unselected.marker.opacity
-        }
+    below: {
+        valType: 'string',
+        role: 'info',
+        description: [
+            'Determines if this scattermapbox trace\'s layers are to be inserted',
+            'before the layer with the specified ID.',
+            'By default, scattermapbox layers are inserted',
+            'above all the base layers.',
+            'To place the scattermapbox layers above every other layer, set `below` to *\'\'*.'
+        ].join(' ')
     },
 
-    hoverinfo: extendFlat({}, plotAttrs.hoverinfo, {
+    selected: {
+        marker: scatterAttrs.selected.marker
+    },
+    unselected: {
+        marker: scatterAttrs.unselected.marker
+    },
+
+    hoverinfo: extendFlat({}, baseAttrs.hoverinfo, {
         flags: ['lon', 'lat', 'text', 'name']
-    })
+    }),
+    hovertemplate: hovertemplateAttrs(),
 }, 'calc', 'nested');

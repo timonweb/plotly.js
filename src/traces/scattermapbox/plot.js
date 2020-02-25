@@ -1,96 +1,100 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
 * LICENSE file in the root directory of this source tree.
 */
 
-
 'use strict';
 
 var convert = require('./convert');
+var LAYER_PREFIX = require('../../plots/mapbox/constants').traceLayerPrefix;
+var ORDER = ['fill', 'line', 'circle', 'symbol'];
 
-
-function ScatterMapbox(mapbox, uid) {
-    this.mapbox = mapbox;
-    this.map = mapbox.map;
-
+function ScatterMapbox(subplot, uid) {
+    this.type = 'scattermapbox';
+    this.subplot = subplot;
     this.uid = uid;
 
-    this.idSourceFill = uid + '-source-fill';
-    this.idSourceLine = uid + '-source-line';
-    this.idSourceCircle = uid + '-source-circle';
-    this.idSourceSymbol = uid + '-source-symbol';
+    this.sourceIds = {
+        fill: 'source-' + uid + '-fill',
+        line: 'source-' + uid + '-line',
+        circle: 'source-' + uid + '-circle',
+        symbol: 'source-' + uid + '-symbol'
+    };
 
-    this.idLayerFill = uid + '-layer-fill';
-    this.idLayerLine = uid + '-layer-line';
-    this.idLayerCircle = uid + '-layer-circle';
-    this.idLayerSymbol = uid + '-layer-symbol';
-
-    this.mapbox.initSource(this.idSourceFill);
-    this.mapbox.initSource(this.idSourceLine);
-    this.mapbox.initSource(this.idSourceCircle);
-    this.mapbox.initSource(this.idSourceSymbol);
-
-    this.map.addLayer({
-        id: this.idLayerFill,
-        source: this.idSourceFill,
-        type: 'fill'
-    });
-
-    this.map.addLayer({
-        id: this.idLayerLine,
-        source: this.idSourceLine,
-        type: 'line'
-    });
-
-    this.map.addLayer({
-        id: this.idLayerCircle,
-        source: this.idSourceCircle,
-        type: 'circle'
-    });
-
-    this.map.addLayer({
-        id: this.idLayerSymbol,
-        source: this.idSourceSymbol,
-        type: 'symbol'
-    });
+    this.layerIds = {
+        fill: LAYER_PREFIX + uid + '-fill',
+        line: LAYER_PREFIX + uid + '-line',
+        circle: LAYER_PREFIX + uid + '-circle',
+        symbol: LAYER_PREFIX + uid + '-symbol'
+    };
 
     // We could merge the 'fill' source with the 'line' source and
     // the 'circle' source with the 'symbol' source if ever having
     // for up-to 4 sources per 'scattermapbox' traces becomes a problem.
+
+    // previous 'below' value,
+    // need this to update it properly
+    this.below = null;
 }
 
 var proto = ScatterMapbox.prototype;
 
+proto.addSource = function(k, opts) {
+    this.subplot.map.addSource(this.sourceIds[k], {
+        type: 'geojson',
+        data: opts.geojson
+    });
+};
+
+proto.setSourceData = function(k, opts) {
+    this.subplot.map
+        .getSource(this.sourceIds[k])
+        .setData(opts.geojson);
+};
+
+proto.addLayer = function(k, opts, below) {
+    this.subplot.addLayer({
+        type: k,
+        id: this.layerIds[k],
+        source: this.sourceIds[k],
+        layout: opts.layout,
+        paint: opts.paint
+    }, below);
+};
+
 proto.update = function update(calcTrace) {
-    var mapbox = this.mapbox;
-    var opts = convert(calcTrace);
+    var subplot = this.subplot;
+    var map = subplot.map;
+    var optsAll = convert(subplot.gd, calcTrace);
+    var below = subplot.belowLookup['trace-' + this.uid];
+    var i, k, opts;
 
-    mapbox.setOptions(this.idLayerFill, 'setLayoutProperty', opts.fill.layout);
-    mapbox.setOptions(this.idLayerLine, 'setLayoutProperty', opts.line.layout);
-    mapbox.setOptions(this.idLayerCircle, 'setLayoutProperty', opts.circle.layout);
-    mapbox.setOptions(this.idLayerSymbol, 'setLayoutProperty', opts.symbol.layout);
-
-    if(isVisible(opts.fill)) {
-        mapbox.setSourceData(this.idSourceFill, opts.fill.geojson);
-        mapbox.setOptions(this.idLayerFill, 'setPaintProperty', opts.fill.paint);
+    if(below !== this.below) {
+        for(i = ORDER.length - 1; i >= 0; i--) {
+            k = ORDER[i];
+            map.removeLayer(this.layerIds[k]);
+        }
+        for(i = 0; i < ORDER.length; i++) {
+            k = ORDER[i];
+            opts = optsAll[k];
+            this.addLayer(k, opts, below);
+        }
+        this.below = below;
     }
 
-    if(isVisible(opts.line)) {
-        mapbox.setSourceData(this.idSourceLine, opts.line.geojson);
-        mapbox.setOptions(this.idLayerLine, 'setPaintProperty', opts.line.paint);
-    }
+    for(i = 0; i < ORDER.length; i++) {
+        k = ORDER[i];
+        opts = optsAll[k];
 
-    if(isVisible(opts.circle)) {
-        mapbox.setSourceData(this.idSourceCircle, opts.circle.geojson);
-        mapbox.setOptions(this.idLayerCircle, 'setPaintProperty', opts.circle.paint);
-    }
+        subplot.setOptions(this.layerIds[k], 'setLayoutProperty', opts.layout);
 
-    if(isVisible(opts.symbol)) {
-        mapbox.setSourceData(this.idSourceSymbol, opts.symbol.geojson);
-        mapbox.setOptions(this.idLayerSymbol, 'setPaintProperty', opts.symbol.paint);
+        if(opts.layout.visibility === 'visible') {
+            this.setSourceData(k, opts);
+            subplot.setOptions(this.layerIds[k], 'setPaintProperty', opts.paint);
+        }
     }
 
     // link ref for quick update during selections
@@ -98,28 +102,30 @@ proto.update = function update(calcTrace) {
 };
 
 proto.dispose = function dispose() {
-    var map = this.map;
+    var map = this.subplot.map;
 
-    map.removeLayer(this.idLayerFill);
-    map.removeLayer(this.idLayerLine);
-    map.removeLayer(this.idLayerCircle);
-    map.removeLayer(this.idLayerSymbol);
-
-    map.removeSource(this.idSourceFill);
-    map.removeSource(this.idSourceLine);
-    map.removeSource(this.idSourceCircle);
-    map.removeSource(this.idSourceSymbol);
+    for(var i = ORDER.length - 1; i >= 0; i--) {
+        var k = ORDER[i];
+        map.removeLayer(this.layerIds[k]);
+        map.removeSource(this.sourceIds[k]);
+    }
 };
 
-function isVisible(layerOpts) {
-    return layerOpts.layout.visibility === 'visible';
-}
-
-module.exports = function createScatterMapbox(mapbox, calcTrace) {
+module.exports = function createScatterMapbox(subplot, calcTrace) {
     var trace = calcTrace[0].trace;
+    var scatterMapbox = new ScatterMapbox(subplot, trace.uid);
+    var optsAll = convert(subplot.gd, calcTrace);
+    var below = scatterMapbox.below = subplot.belowLookup['trace-' + trace.uid];
 
-    var scatterMapbox = new ScatterMapbox(mapbox, trace.uid);
-    scatterMapbox.update(calcTrace);
+    for(var i = 0; i < ORDER.length; i++) {
+        var k = ORDER[i];
+        var opts = optsAll[k];
+        scatterMapbox.addSource(k, opts);
+        scatterMapbox.addLayer(k, opts, below);
+    }
+
+    // link ref for quick update during selections
+    calcTrace[0].trace._glTrace = scatterMapbox;
 
     return scatterMapbox;
 };

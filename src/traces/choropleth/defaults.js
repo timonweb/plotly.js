@@ -1,11 +1,10 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
 * LICENSE file in the root directory of this source tree.
 */
-
 
 'use strict';
 
@@ -19,34 +18,37 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     }
 
     var locations = coerce('locations');
-
-    var len;
-    if(locations) len = locations.length;
-
-    if(!locations || !len) {
-        traceOut.visible = false;
-        return;
-    }
-
     var z = coerce('z');
-    if(!Array.isArray(z)) {
+
+    if(!(locations && locations.length && Lib.isArrayOrTypedArray(z) && z.length)) {
         traceOut.visible = false;
         return;
     }
 
-    if(z.length > len) traceOut.z = z.slice(0, len);
+    traceOut._length = Math.min(locations.length, z.length);
 
-    coerce('locationmode');
+    var geojson = coerce('geojson');
+
+    var locationmodeDflt;
+    if((typeof geojson === 'string' && geojson !== '') || Lib.isPlainObject(geojson)) {
+        locationmodeDflt = 'geojson-id';
+    }
+
+    var locationMode = coerce('locationmode', locationmodeDflt);
+
+    if(locationMode === 'geojson-id') {
+        coerce('featureidkey');
+    }
 
     coerce('text');
+    coerce('hovertext');
+    coerce('hovertemplate');
 
-    coerce('marker.line.color');
-    coerce('marker.line.width');
+    var mlw = coerce('marker.line.width');
+    if(mlw) coerce('marker.line.color');
     coerce('marker.opacity');
 
-    colorscaleDefaults(
-        traceIn, traceOut, layout, coerce, {prefix: '', cLetter: 'z'}
-    );
+    colorscaleDefaults(traceIn, traceOut, layout, coerce, {prefix: '', cLetter: 'z'});
 
     Lib.coerceSelectionMarkerOpacity(traceOut, coerce);
 };

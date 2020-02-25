@@ -1,11 +1,10 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
 * LICENSE file in the root directory of this source tree.
 */
-
 
 'use strict';
 
@@ -30,8 +29,11 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     }
 
     coerce('text');
+    coerce('texttemplate');
     coerce('hovertext');
+    coerce('hovertemplate');
     coerce('mode');
+    coerce('below');
 
     if(subTypes.hasLines(traceOut)) {
         handleLineDefaults(traceIn, traceOut, defaultColor, layout, coerce, {noDash: true});
@@ -39,17 +41,13 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     }
 
     if(subTypes.hasMarkers(traceOut)) {
-        handleMarkerDefaults(traceIn, traceOut, defaultColor, layout, coerce, {noLine: true, noSelect: true});
+        handleMarkerDefaults(traceIn, traceOut, defaultColor, layout, coerce, {noLine: true});
 
         // array marker.size and marker.color are only supported with circles
-
         var marker = traceOut.marker;
-        // we need  mock marker.line object to make legends happy
-        marker.line = {width: 0};
-
         if(marker.symbol !== 'circle') {
-            if(Array.isArray(marker.size)) marker.size = marker.size[0];
-            if(Array.isArray(marker.color)) marker.color = marker.color[0];
+            if(Lib.isArrayOrTypedArray(marker.size)) marker.size = marker.size[0];
+            if(Lib.isArrayOrTypedArray(marker.color)) marker.color = marker.color[0];
         }
     }
 
@@ -69,9 +67,7 @@ function handleLonLatDefaults(traceIn, traceOut, coerce) {
     var lon = coerce('lon') || [];
     var lat = coerce('lat') || [];
     var len = Math.min(lon.length, lat.length);
-
-    if(len < lon.length) traceOut.lon = lon.slice(0, len);
-    if(len < lat.length) traceOut.lat = lat.slice(0, len);
+    traceOut._length = len;
 
     return len;
 }

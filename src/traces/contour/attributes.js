@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -10,11 +10,16 @@
 
 var heatmapAttrs = require('../heatmap/attributes');
 var scatterAttrs = require('../scatter/attributes');
-var colorscaleAttrs = require('../../components/colorscale/attributes');
-var colorbarAttrs = require('../../components/colorbar/attributes');
+var colorScaleAttrs = require('../../components/colorscale/attributes');
 var dash = require('../../components/drawing/attributes').dash;
 var fontAttrs = require('../../plots/font_attributes');
 var extendFlat = require('../../lib/extend').extendFlat;
+
+var filterOps = require('../../constants/filter_ops');
+var COMPARISON_OPS2 = filterOps.COMPARISON_OPS2;
+var INTERVAL_OPS = filterOps.INTERVAL_OPS;
+
+var FORMAT_LINK = require('../../constants/docs').FORMAT_LINK;
 
 var scatterLineAttrs = scatterAttrs.line;
 
@@ -27,12 +32,34 @@ module.exports = extendFlat({
     y0: heatmapAttrs.y0,
     dy: heatmapAttrs.dy,
     text: heatmapAttrs.text,
+    hovertext: heatmapAttrs.hovertext,
     transpose: heatmapAttrs.transpose,
     xtype: heatmapAttrs.xtype,
     ytype: heatmapAttrs.ytype,
     zhoverformat: heatmapAttrs.zhoverformat,
+    hovertemplate: heatmapAttrs.hovertemplate,
+    hoverongaps: heatmapAttrs.hoverongaps,
+    connectgaps: extendFlat({}, heatmapAttrs.connectgaps, {
+        description: [
+            'Determines whether or not gaps',
+            '(i.e. {nan} or missing values)',
+            'in the `z` data are filled in.',
+            'It is defaulted to true if `z` is a',
+            'one dimensional array',
+            'otherwise it is defaulted to false.'
+        ].join(' ')
+    }),
 
-    connectgaps: heatmapAttrs.connectgaps,
+    fillcolor: {
+        valType: 'color',
+        role: 'style',
+        editType: 'calc',
+        description: [
+            'Sets the fill color if `contours.type` is *constraint*.',
+            'Defaults to a half-transparent variant of the line color,',
+            'marker color, or marker line color, whichever is available.'
+        ].join(' ')
+    },
 
     autocontour: {
         valType: 'boolean',
@@ -67,6 +94,19 @@ module.exports = extendFlat({
     },
 
     contours: {
+        type: {
+            valType: 'enumerated',
+            values: ['levels', 'constraint'],
+            dflt: 'levels',
+            role: 'info',
+            editType: 'calc',
+            description: [
+                'If `levels`, the data is represented as a contour plot with multiple',
+                'levels displayed. If `constraint`, the data is represented as constraints',
+                'with the invalid region shaded as specified by the `operation` and',
+                '`value` parameters.'
+            ].join(' ')
+        },
         start: {
             valType: 'number',
             dflt: null,
@@ -152,7 +192,48 @@ module.exports = extendFlat({
             description: [
                 'Sets the contour label formatting rule using d3 formatting',
                 'mini-language which is very similar to Python, see:',
-                'https://github.com/d3/d3-format/blob/master/README.md#locale_format.'
+                FORMAT_LINK
+            ].join(' ')
+        },
+        operation: {
+            valType: 'enumerated',
+            values: [].concat(COMPARISON_OPS2).concat(INTERVAL_OPS),
+            role: 'info',
+            dflt: '=',
+            editType: 'calc',
+            description: [
+                'Sets the constraint operation.',
+
+                '*=* keeps regions equal to `value`',
+
+                '*<* and *<=* keep regions less than `value`',
+
+                '*>* and *>=* keep regions greater than `value`',
+
+                '*[]*, *()*, *[)*, and *(]* keep regions inside `value[0]` to `value[1]`',
+
+                '*][*, *)(*, *](*, *)[* keep regions outside `value[0]` to value[1]`',
+
+                'Open vs. closed intervals make no difference to constraint display, but',
+                'all versions are allowed for consistency with filter transforms.'
+            ].join(' ')
+        },
+        value: {
+            valType: 'any',
+            dflt: 0,
+            role: 'info',
+            editType: 'calc',
+            description: [
+                'Sets the value or values of the constraint boundary.',
+
+                'When `operation` is set to one of the comparison values',
+                '(' + COMPARISON_OPS2 + ')',
+                '*value* is expected to be a number.',
+
+                'When `operation` is set to one of the interval values',
+                '(' + INTERVAL_OPS + ')',
+                '*value* is expected to be an array of two numbers where the first',
+                'is the lower bound and the second is the upper bound.',
             ].join(' ')
         },
         editType: 'calc',
@@ -167,9 +248,17 @@ module.exports = extendFlat({
                 'Has no effect if `contours.coloring` is set to *lines*.'
             ].join(' ')
         }),
-        width: extendFlat({}, scatterLineAttrs.width, {
-            editType: 'style+colorbars'
-        }),
+        width: {
+            valType: 'number',
+            min: 0,
+            role: 'style',
+            editType: 'style+colorbars',
+            description: [
+                'Sets the contour line width in (in px)',
+                'Defaults to *0.5* when `contours.type` is *levels*.',
+                'Defaults to *2* when `contour.type` is *constraint*.'
+            ].join(' ')
+        },
         dash: dash,
         smoothing: extendFlat({}, scatterLineAttrs.smoothing, {
             description: [
@@ -180,10 +269,9 @@ module.exports = extendFlat({
         editType: 'plot'
     }
 },
-    colorscaleAttrs, {
-        autocolorscale: extendFlat({}, colorscaleAttrs.autocolorscale, {dflt: false}),
-        zmin: extendFlat({}, colorscaleAttrs.zmin, {editType: 'calc'}),
-        zmax: extendFlat({}, colorscaleAttrs.zmax, {editType: 'calc'})
-    },
-    { colorbar: colorbarAttrs }
+    colorScaleAttrs('', {
+        cLetter: 'z',
+        autoColorDflt: false,
+        editTypeOverride: 'calc'
+    })
 );

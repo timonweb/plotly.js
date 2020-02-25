@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -11,8 +11,7 @@
 
 var scatterPlot = require('../scatter/plot');
 
-
-module.exports = function plot(ternary, moduleCalcData) {
+module.exports = function plot(gd, ternary, moduleCalcData) {
     var plotContainer = ternary.plotContainer;
 
     // remove all nodes inside the scatter layer
@@ -26,5 +25,7 @@ module.exports = function plot(ternary, moduleCalcData) {
         layerClipId: ternary._hasClipOnAxisFalse ? ternary.clipIdRelative : null
     };
 
-    scatterPlot(ternary.graphDiv, plotinfo, moduleCalcData);
+    var scatterLayer = ternary.layers.frontplot.select('g.scatterlayer');
+
+    scatterPlot(gd, plotinfo, moduleCalcData, scatterLayer);
 };

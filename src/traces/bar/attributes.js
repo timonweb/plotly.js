@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -9,16 +9,18 @@
 'use strict';
 
 var scatterAttrs = require('../scatter/attributes');
-var colorAttributes = require('../../components/colorscale/color_attributes');
-var errorBarAttrs = require('../../components/errorbars/attributes');
-var colorbarAttrs = require('../../components/colorbar/attributes');
+var hovertemplateAttrs = require('../../plots/template_attributes').hovertemplateAttrs;
+var texttemplateAttrs = require('../../plots/template_attributes').texttemplateAttrs;
+var colorScaleAttrs = require('../../components/colorscale/attributes');
 var fontAttrs = require('../../plots/font_attributes');
+var constants = require('./constants');
 
 var extendFlat = require('../../lib/extend').extendFlat;
 
 var textFontAttrs = fontAttrs({
     editType: 'calc',
     arrayOk: true,
+    colorEditType: 'style',
     description: ''
 });
 
@@ -31,14 +33,12 @@ var markerLineWidth = extendFlat({},
 var markerLine = extendFlat({
     width: markerLineWidth,
     editType: 'calc'
-}, colorAttributes('marker.line'));
+}, colorScaleAttrs('marker.line'));
 
 var marker = extendFlat({
     line: markerLine,
     editType: 'calc'
-}, colorAttributes('marker'), {
-    showscale: scatterMarkerAttrs.showscale,
-    colorbar: colorbarAttrs,
+}, colorScaleAttrs('marker'), {
     opacity: {
         valType: 'number',
         arrayOk: true,
@@ -60,7 +60,13 @@ module.exports = {
     dy: scatterAttrs.dy,
 
     text: scatterAttrs.text,
+    texttemplate: texttemplateAttrs({editType: 'plot'}, {
+        keys: constants.eventDataKeys
+    }),
     hovertext: scatterAttrs.hovertext,
+    hovertemplate: hovertemplateAttrs({}, {
+        keys: constants.eventDataKeys
+    }),
 
     textposition: {
         valType: 'enumerated',
@@ -74,9 +80,35 @@ module.exports = {
             '*inside* positions `text` inside, next to the bar end',
             '(rotated and scaled if needed).',
             '*outside* positions `text` outside, next to the bar end',
-            '(scaled if needed).',
-            '*auto* positions `text` inside or outside',
-            'so that `text` size is maximized.'
+            '(scaled if needed), unless there is another bar stacked on',
+            'this one, then the text gets pushed inside.',
+            '*auto* tries to position `text` inside the bar, but if',
+            'the bar is too small and no bar is stacked on this one',
+            'the text is moved outside.'
+        ].join(' ')
+    },
+
+    insidetextanchor: {
+        valType: 'enumerated',
+        values: ['end', 'middle', 'start'],
+        dflt: 'end',
+        role: 'info',
+        editType: 'plot',
+        description: [
+            'Determines if texts are kept at center or start/end points in `textposition` *inside* mode.'
+        ].join(' ')
+    },
+
+    textangle: {
+        valType: 'angle',
+        dflt: 'auto',
+        role: 'info',
+        editType: 'plot',
+        description: [
+            'Sets the angle of the tick labels with respect to the bar.',
+            'For example, a `tickangle` of -90 draws the tick labels',
+            'vertically. With *auto* the texts may automatically be',
+            'rotated to fit with the maximum size in bars.'
         ].join(' ')
     },
 
@@ -103,6 +135,15 @@ module.exports = {
             'larger than the bar itself.'
         ].join(' ')
     },
+
+    cliponaxis: extendFlat({}, scatterAttrs.cliponaxis, {
+        description: [
+            'Determines whether the text nodes',
+            'are clipped about the subplot axes.',
+            'To show the text nodes above axis lines and tick labels,',
+            'make sure to set `xaxis.layer` and `yaxis.layer` to *below traces*.'
+        ].join(' ')
+    }),
 
     orientation: {
         valType: 'enumerated',
@@ -159,6 +200,30 @@ module.exports = {
 
     marker: marker,
 
+    offsetgroup: {
+        valType: 'string',
+        role: 'info',
+        dflt: '',
+        editType: 'calc',
+        description: [
+            'Set several traces linked to the same position axis',
+            'or matching axes to the same',
+            'offsetgroup where bars of the same position coordinate will line up.'
+        ].join(' ')
+    },
+    alignmentgroup: {
+        valType: 'string',
+        role: 'info',
+        dflt: '',
+        editType: 'calc',
+        description: [
+            'Set several traces linked to the same position axis',
+            'or matching axes to the same',
+            'alignmentgroup. This controls whether bars compute their positional',
+            'range dependently or independently.'
+        ].join(' ')
+    },
+
     selected: {
         marker: {
             opacity: scatterAttrs.selected.marker.opacity,
@@ -180,9 +245,6 @@ module.exports = {
 
     r: scatterAttrs.r,
     t: scatterAttrs.t,
-
-    error_y: errorBarAttrs,
-    error_x: errorBarAttrs,
 
     _deprecated: {
         bardir: {

@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -12,23 +12,26 @@ module.exports = {
     moduleType: 'trace',
     name: 'scatterpolar',
     basePlotModule: require('../../plots/polar'),
-    categories: ['polar', 'symbols', 'markerColorscale', 'showLegend', 'scatter-like'],
+    categories: ['polar', 'symbols', 'showLegend', 'scatter-like'],
 
     attributes: require('./attributes'),
-    supplyDefaults: require('./defaults'),
+    supplyDefaults: require('./defaults').supplyDefaults,
+    colorbar: require('../scatter/marker_colorbar'),
+    formatLabels: require('./format_labels'),
     calc: require('./calc'),
     plot: require('./plot'),
     style: require('../scatter/style').style,
-    hoverPoints: require('./hover'),
+    styleOnSelect: require('../scatter/style').styleOnSelect,
+    hoverPoints: require('./hover').hoverPoints,
     selectPoints: require('../scatter/select'),
 
     meta: {
         hrName: 'scatter_polar',
         description: [
-            'The scatterpolar trace type encompasses line charts, scatter charts, text charts, and bubble charts.',
+            'The scatterpolar trace type encompasses line charts, scatter charts, text charts, and bubble charts',
             'in polar coordinates.',
             'The data visualized as scatter point or lines is set in',
-            '`r` (radial) and `theta` (angular). coordintes',
+            '`r` (radial) and `theta` (angular) coordinates',
             'Text (appearing either on the chart or on hover only) is via `text`.',
             'Bubble charts are achieved by setting `marker.size` and/or `marker.color`',
             'to numerical arrays.'

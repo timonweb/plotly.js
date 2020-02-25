@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -27,10 +27,10 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
         return Lib.coerce(traceIn, traceOut, attributes, attr, dflt);
     }
 
-    var a = coerce('a'),
-        b = coerce('b'),
-        c = coerce('c'),
-        len;
+    var a = coerce('a');
+    var b = coerce('b');
+    var c = coerce('c');
+    var len;
 
     // allow any one array to be missing, len is the minimum length of those
     // present. Note that after coerce data_array's are either Arrays (which
@@ -42,11 +42,9 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
         if(b) {
             len = Math.min(len, b.length);
             if(c) len = Math.min(len, c.length);
-        }
-        else if(c) len = Math.min(len, c.length);
+        } else if(c) len = Math.min(len, c.length);
         else len = 0;
-    }
-    else if(b && c) {
+    } else if(b && c) {
         len = Math.min(b.length, c.length);
     }
 
@@ -55,15 +53,13 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
         return;
     }
 
-    // cut all data arrays down to same length
-    if(a && len < a.length) traceOut.a = a.slice(0, len);
-    if(b && len < b.length) traceOut.b = b.slice(0, len);
-    if(c && len < c.length) traceOut.c = c.slice(0, len);
+    traceOut._length = len;
 
     coerce('sum');
 
     coerce('text');
     coerce('hovertext');
+    if(traceOut.hoveron !== 'fills') coerce('hovertemplate');
 
     var defaultMode = len < constants.PTS_LINESONLY ? 'lines+markers' : 'lines';
     coerce('mode', defaultMode);
@@ -79,6 +75,7 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     }
 
     if(subTypes.hasText(traceOut)) {
+        coerce('texttemplate');
         handleTextDefaults(traceIn, traceOut, layout, coerce);
     }
 

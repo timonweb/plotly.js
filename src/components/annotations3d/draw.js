@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -38,7 +38,7 @@ module.exports = function draw(scene) {
                 .select('.annotation-' + scene.id + '[data-index="' + i + '"]')
                 .remove();
         } else {
-            ann.pdata = project(scene.glplot.cameraParams, [
+            ann._pdata = project(scene.glplot.cameraParams, [
                 fullSceneLayout.xaxis.r2l(ann.x) * dataScale[0],
                 fullSceneLayout.yaxis.r2l(ann.y) * dataScale[1],
                 fullSceneLayout.zaxis.r2l(ann.z) * dataScale[2]

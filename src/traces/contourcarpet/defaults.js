@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -13,15 +13,17 @@ var Lib = require('../../lib');
 
 var handleXYZDefaults = require('../heatmap/xyz_defaults');
 var attributes = require('./attributes');
+var handleConstraintDefaults = require('../contour/constraint_defaults');
+var handleContoursDefaults = require('../contour/contours_defaults');
 var handleStyleDefaults = require('../contour/style_defaults');
-var handleFillColorDefaults = require('../scatter/fillcolor_defaults');
-var plotAttributes = require('../../plots/attributes');
-var supplyConstraintDefaults = require('./constraint_value_defaults');
-var addOpacity = require('../../components/color').addOpacity;
 
 module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout) {
     function coerce(attr, dflt) {
         return Lib.coerce(traceIn, traceOut, attributes, attr, dflt);
+    }
+
+    function coerce2(attr) {
+        return Lib.coerce2(traceIn, traceOut, attributes, attr);
     }
 
     coerce('carpet');
@@ -42,8 +44,6 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
     // attribute name to match the property name -- except '_a' !== 'a' so that is not
     // straightforward.
     if(traceIn.a && traceIn.b) {
-        var contourSize, contourStart, contourEnd, missingEnd, autoContour;
-
         var len = handleXYZDefaults(traceIn, traceOut, coerce, layout, 'a', 'b');
 
         if(!len) {
@@ -52,105 +52,16 @@ module.exports = function supplyDefaults(traceIn, traceOut, defaultColor, layout
         }
 
         coerce('text');
-        coerce('contours.type');
+        var isConstraint = (coerce('contours.type') === 'constraint');
 
-        var contours = traceOut.contours;
-
-        // Unimplemented:
-        // coerce('connectgaps', hasColumns(traceOut));
-
-        if(contours.type === 'constraint') {
-            coerce('contours.operation');
-
-            supplyConstraintDefaults(coerce, contours);
-
-            // Override the trace-level showlegend default with a default that takes
-            // into account whether this is a constraint or level contours:
-            Lib.coerce(traceIn, traceOut, plotAttributes, 'showlegend', true);
-
-            // Override the above defaults with constraint-aware tweaks:
-            coerce('contours.coloring', contours.operation === '=' ? 'lines' : 'fill');
-            coerce('contours.showlines', true);
-
-            if(contours.operation === '=') {
-                contours.coloring = 'lines';
-            }
-            handleFillColorDefaults(traceIn, traceOut, defaultColor, coerce);
-
-            // If there's a fill color, use it at full opacity for the line color
-            var lineDfltColor = traceOut.fillcolor ? addOpacity(traceOut.fillcolor, 1) : defaultColor;
-
-            handleStyleDefaults(traceIn, traceOut, coerce, layout, {
-                hasHover: false,
-                defaultColor: lineDfltColor,
-                defaultWidth: 2
-            });
-
-            if(contours.operation === '=') {
-                coerce('line.color', defaultColor);
-
-                if(contours.coloring === 'fill') {
-                    contours.coloring = 'lines';
-                }
-
-                if(contours.coloring === 'lines') {
-                    delete traceOut.fillcolor;
-                }
-            }
-
-            delete traceOut.showscale;
-            delete traceOut.autocontour;
-            delete traceOut.autocolorscale;
-            delete traceOut.colorscale;
-            delete traceOut.ncontours;
-            delete traceOut.colorbar;
-
-            if(traceOut.line) {
-                delete traceOut.line.autocolorscale;
-                delete traceOut.line.colorscale;
-                delete traceOut.line.mincolor;
-                delete traceOut.line.maxcolor;
-            }
-
-            // TODO: These should be deleted in accordance with toolpanel convention, but
-            // we can't because we require them so that it magically makes the contour
-            // parts of the code happy:
-            // delete traceOut.contours.start;
-            // delete traceOut.contours.end;
-            // delete traceOut.contours.size;
+        if(isConstraint) {
+            handleConstraintDefaults(traceIn, traceOut, coerce, layout, defaultColor, {hasHover: false});
         } else {
-            // Override the trace-level showlegend default with a default that takes
-            // into account whether this is a constraint or level contours:
-            Lib.coerce(traceIn, traceOut, plotAttributes, 'showlegend', false);
-
-            contourStart = Lib.coerce2(traceIn, traceOut, attributes, 'contours.start');
-            contourEnd = Lib.coerce2(traceIn, traceOut, attributes, 'contours.end');
-
-                // normally we only need size if autocontour is off. But contour.calc
-                // pushes its calculated contour size back to the input trace, so for
-                // things like restyle that can call supplyDefaults without calc
-                // after the initial draw, we can just reuse the previous calculation
-            contourSize = coerce('contours.size');
-            coerce('contours.coloring');
-
-            missingEnd = (contourStart === false) || (contourEnd === false);
-
-            if(missingEnd) {
-                autoContour = traceOut.autocontour = true;
-            } else {
-                autoContour = coerce('autocontour', false);
-            }
-
-            if(autoContour || !contourSize) {
-                coerce('ncontours');
-            }
-
+            handleContoursDefaults(traceIn, traceOut, coerce, coerce2);
             handleStyleDefaults(traceIn, traceOut, coerce, layout, {hasHover: false});
-
-            delete traceOut.value;
-            delete traceOut.operation;
         }
     } else {
         traceOut._defaultColor = defaultColor;
+        traceOut._length = null;
     }
 };

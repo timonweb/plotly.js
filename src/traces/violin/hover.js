@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -25,10 +25,6 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode, hoverLay
 
     if(hasHoveronViolins || hasHoveronKDE) {
         var closeBoxData = boxHoverPoints.hoverOnBoxes(pointData, xval, yval, hovermode);
-
-        if(hasHoveronViolins) {
-            closeData = closeData.concat(closeBoxData);
-        }
 
         if(hasHoveronKDE && closeBoxData.length > 0) {
             var xa = pointData.xa;
@@ -63,6 +59,17 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode, hoverLay
                 kdePointData[pLetter + '1'] = pOnPath[1];
                 kdePointData[vLetter + '0'] = kdePointData[vLetter + '1'] = vValPx;
                 kdePointData[vLetter + 'Label'] = vLetter + ': ' + Axes.hoverLabelText(vAxis, vVal) + ', ' + cd[0].t.labels.kde + ' ' + kdeVal.toFixed(3);
+
+                // move the spike to the KDE point
+                kdePointData.spikeDistance = closeBoxData[0].spikeDistance;
+                var spikePosAttr = pLetter + 'Spike';
+                kdePointData[spikePosAttr] = closeBoxData[0][spikePosAttr];
+                closeBoxData[0].spikeDistance = undefined;
+                closeBoxData[0][spikePosAttr] = undefined;
+
+                // no hovertemplate support yet
+                kdePointData.hovertemplate = false;
+
                 closeData.push(kdePointData);
 
                 violinLineAttrs = {stroke: pointData.color};
@@ -70,6 +77,10 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode, hoverLay
                 violinLineAttrs[pLetter + '2'] = Lib.constrain(paOffset + pOnPath[1], paOffset, paOffset + paLength);
                 violinLineAttrs[vLetter + '1'] = violinLineAttrs[vLetter + '2'] = vAxis._offset + vValPx;
             }
+        }
+
+        if(hasHoveronViolins) {
+            closeData = closeData.concat(closeBoxData);
         }
     }
 

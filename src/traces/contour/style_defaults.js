@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -10,11 +10,10 @@
 'use strict';
 
 var colorscaleDefaults = require('../../components/colorscale/defaults');
-var Lib = require('../../lib');
+var handleLabelDefaults = require('./label_defaults');
 
 
 module.exports = function handleStyleDefaults(traceIn, traceOut, coerce, layout, opts) {
-    if(!opts) opts = {};
     var coloring = coerce('contours.coloring');
 
     var showLines;
@@ -22,29 +21,23 @@ module.exports = function handleStyleDefaults(traceIn, traceOut, coerce, layout,
     if(coloring === 'fill') showLines = coerce('contours.showlines');
 
     if(showLines !== false) {
-        if(coloring !== 'lines') lineColor = coerce('line.color', opts.defaultColor || '#000');
-        coerce('line.width', opts.defaultWidth === undefined ? 0.5 : opts.defaultWidth);
+        if(coloring !== 'lines') lineColor = coerce('line.color', '#000');
+        coerce('line.width', 0.5);
         coerce('line.dash');
     }
 
-    coerce('line.smoothing');
-
     if(coloring !== 'none') {
+        // plots/plots always coerces showlegend to true, but in this case
+        // we default to false and (by default) show a colorbar instead
+        if(traceIn.showlegend !== true) traceOut.showlegend = false;
+        traceOut._dfltShowLegend = false;
+
         colorscaleDefaults(
             traceIn, traceOut, layout, coerce, {prefix: '', cLetter: 'z'}
         );
     }
 
-    var showLabels = coerce('contours.showlabels');
-    if(showLabels) {
-        var globalFont = layout.font;
-        Lib.coerceFont(coerce, 'contours.labelfont', {
-            family: globalFont.family,
-            size: globalFont.size,
-            color: lineColor
-        });
-        coerce('contours.labelformat');
-    }
+    coerce('line.smoothing');
 
-    if(opts.hasHover !== false) coerce('zhoverformat');
+    handleLabelDefaults(coerce, layout, lineColor, opts);
 };

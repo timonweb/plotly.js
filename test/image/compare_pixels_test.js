@@ -1,4 +1,5 @@
 var fs = require('fs');
+var minimist = require('minimist');
 
 var common = require('../../tasks/util/common');
 var getMockList = require('./assets/get_mock_list');
@@ -46,113 +47,107 @@ var QUEUE_WAIT = 10;
  *  Run all gl3d image test in queue:
  *
  *      npm run test-image -- gl3d_* --queue
+ *
+ *
  */
 
-var pattern = process.argv[2];
-var mockList = getMockList(pattern);
-var isInQueue = (process.argv[3] === '--queue');
-var isCI = process.env.CIRCLECI;
+var argv = minimist(process.argv.slice(2), {
+    boolean: ['queue', 'filter', 'skip-flaky', 'just-flaky']
+});
 
-
-if(mockList.length === 0) {
-    throw new Error('No mocks found with pattern ' + pattern);
+var allMock = false;
+// If no pattern is provided, all mocks are compared
+if(argv._.length === 0) {
+    allMock = true;
+    argv._.push('');
 }
 
-// filter out untestable mocks if no pattern is specified
-if(!pattern) {
+// Build list of mocks to compare
+var allMockList = [];
+argv._.forEach(function(pattern) {
+    var mockList = getMockList(pattern);
+
+    if(mockList.length === 0) {
+        throw new Error('No mocks found with pattern ' + pattern);
+    }
+
+    allMockList = allMockList.concat(mockList);
+});
+
+// To get rid of duplicates
+function unique(value, index, self) {
+    return self.indexOf(value) === index;
+}
+allMockList = allMockList.filter(unique);
+
+// filter out untestable mocks if no pattern is specified (ie. we're testing all mocks)
+// or if flag '--filter' is provided
+console.log('');
+if(allMock || argv.filter) {
     console.log('Filtering out untestable mocks:');
-    mockList = mockList.filter(untestableFilter);
-    console.log('\n');
+    // Test cases:
+    // - font-wishlist
+    // - all mapbox
+    // don't behave consistently from run-to-run and/or
+    // machine-to-machine; skip over them for now.
+    allMockList = allMockList.filter(function(mockName) {
+        var cond = !(
+            mockName === 'font-wishlist' ||
+            mockName.indexOf('mapbox_') !== -1
+        );
+        if(!cond) console.log(' -', mockName);
+        return cond;
+    });
 }
 
-// gl2d have limited image-test support
-if(pattern === 'gl2d_*') {
+var FLAKY_LIST = [
+    'treemap_coffee',
+    'treemap_textposition',
+    'treemap_with-without_values',
+    'trace_metatext',
+    'gl3d_directions-streamtube1'
+];
 
-    if(!isInQueue) {
-        console.log('WARN: Running gl2d image tests in batch may lead to unwanted results\n');
-    }
-
-    if(isCI) {
-        console.log('Filtering out multiple-subplot gl2d mocks:');
-        mockList = mockList
-            .filter(untestableGL2DonCIfilter)
-            .sort(sortForGL2DonCI);
-        console.log('\n');
-    }
+console.log('');
+if(argv['skip-flaky']) {
+    allMockList = allMockList.filter(function(mockName) {
+        var cond = FLAKY_LIST.indexOf(mockName) === -1;
+        if(!cond) console.log('Skipping flaky mock', mockName);
+        return cond;
+    });
+} else if(argv['just-flaky']) {
+    allMockList = allMockList.filter(function(mockName) {
+        return FLAKY_LIST.indexOf(mockName) !== -1;
+    });
 }
 
-// main
-if(isInQueue) {
-    runInQueue(mockList);
-}
-else {
-    runInBatch(mockList);
-}
-
-/* Test cases:
+/* gl2d pointcloud and other non-regl gl2d mock(s)
+ * must be tested first on in order to work;
+ * sort them here.
  *
- * - font-wishlist
- * - all gl2d
- * - all mapbox
- *
- * don't behave consistently from run-to-run and/or
- * machine-to-machine; skip over them for now.
- *
- */
-function untestableFilter(mockName) {
-    var cond = !(
-        mockName === 'font-wishlist' ||
-        mockName.indexOf('gl2d_') !== -1 ||
-        mockName.indexOf('mapbox_') !== -1
-    );
-
-    if(!cond) console.log(' -', mockName);
-
-    return cond;
-}
-
-/* gl2d mocks that have multiple subplots
- * can't be generated properly on CircleCI
- * at the moment.
- *
- * For more info see:
- * https://github.com/plotly/plotly.js/pull/980
- *
- */
-function untestableGL2DonCIfilter(mockName) {
-    var cond = [
-        'gl2d_multiple_subplots',
-        'gl2d_simple_inset',
-        'gl2d_stacked_coupled_subplots',
-        'gl2d_stacked_subplots'
-    ].indexOf(mockName) === -1;
-
-    if(!cond) console.log(' -', mockName);
-
-    return cond;
-}
-
-/* gl2d pointcloud mock(s) must be tested first
- * on CircleCI in order to work; sort them here.
- *
- * Pointcloud relies on gl-shader@4.2.1 whereas
- * other gl2d trace modules rely on gl-shader@4.2.0,
- * we suspect that the lone gl context on CircleCI is
+ * gl-shader appears to conflict with regl.
+ * We suspect that the lone gl context on CircleCI is
  * having issues with dealing with the two different
- * gl-shader versions.
+ * program binding algorithm.
+ *
+ * The problem will be solved by switching all our
+ * WebGL-based trace types to regl.
  *
  * More info here:
  * https://github.com/plotly/plotly.js/pull/1037
  */
-function sortForGL2DonCI(a, b) {
-    var root = 'gl2d_pointcloud',
-        ai = a.indexOf(root),
-        bi = b.indexOf(root);
+function sortGl2dMockList(mockList) {
+    var mockNames = ['gl2d_pointcloud-basic', 'gl2d_heatmapgl'];
+    var pos = 0;
 
-    if(ai < bi) return 1;
-    if(ai > bi) return -1;
-
-    return 0;
+    mockNames.forEach(function(m) {
+        var ind = mockList.indexOf(m);
+        if(ind === -1) return;
+        var tmp = mockList[pos];
+        mockList[pos] = m;
+        mockList[ind] = tmp;
+        pos++;
+    });
 }
 
 function runInBatch(mockList) {
@@ -208,16 +203,15 @@ function runInQueue(mockList) {
 }
 
 function comparePixels(mockName, cb) {
-    var requestOpts = getRequestOpts({ mockName: mockName }),
-        imagePaths = getImagePaths(mockName),
-        saveImageStream = fs.createWriteStream(imagePaths.test);
+    var requestOpts = getRequestOpts({ mockName: mockName });
+    var imagePaths = getImagePaths(mockName);
+    var saveImageStream = fs.createWriteStream(imagePaths.test);
 
     function log(msg) {
         process.stdout.write('Error for', mockName + ':', msg);
     }
 
     function checkImage() {
-
         // baseline image must be generated first
         if(!common.doesFileExist(imagePaths.baseline)) {
             var err = new Error('baseline image not found');
@@ -287,4 +281,14 @@ function comparePixels(mockName, cb) {
         .on('response', onResponse)
         .pipe(saveImageStream)
         .on('close', checkImage);
+}
+
+sortGl2dMockList(allMockList);
+console.log('');
+
+// main
+if(argv.queue) {
+    runInQueue(allMockList);
+} else {
+    runInBatch(allMockList);
 }

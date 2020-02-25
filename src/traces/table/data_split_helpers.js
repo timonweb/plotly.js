@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -51,7 +51,7 @@ exports.splitToPanels = function(d) {
 
 exports.splitToCells = function(d) {
     var fromTo = rowFromTo(d);
-    return d.values.slice(fromTo[0], fromTo[1]).map(function(v, i) {
+    return (d.values || []).slice(fromTo[0], fromTo[1]).map(function(v, i) {
         // By keeping identical key, a DOM node removal, creation and addition is spared, important when visible
         // grid has a lot of elements (quadratic with xcol/ycol count).
         // But it has to be busted when `svgUtil.convertToTspans` is used as it reshapes cell subtrees asynchronously,

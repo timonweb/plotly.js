@@ -1,47 +1,50 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
 * LICENSE file in the root directory of this source tree.
 */
 
-
 'use strict';
 
+var Lib = require('../../lib');
 var subtypes = require('../scatter/subtypes');
+var BADNUM = require('../../constants/numerical').BADNUM;
 
-module.exports = function selectPoints(searchInfo, polygon) {
+module.exports = function selectPoints(searchInfo, selectionTester) {
     var cd = searchInfo.cd;
     var xa = searchInfo.xaxis;
     var ya = searchInfo.yaxis;
     var selection = [];
     var trace = cd[0].trace;
-
-    var di, lonlat, x, y, i;
+    var i;
 
     if(!subtypes.hasMarkers(trace)) return [];
 
-    if(polygon === false) {
+    if(selectionTester === false) {
         for(i = 0; i < cd.length; i++) {
             cd[i].selected = 0;
         }
     } else {
         for(i = 0; i < cd.length; i++) {
-            di = cd[i];
-            lonlat = di.lonlat;
-            x = xa.c2p(lonlat);
-            y = ya.c2p(lonlat);
+            var di = cd[i];
+            var lonlat = di.lonlat;
 
-            if(polygon.contains([x, y])) {
-                selection.push({
-                    pointNumber: i,
-                    lon: lonlat[0],
-                    lat: lonlat[1]
-                });
-                di.selected = 1;
-            } else {
-                di.selected = 0;
+            if(lonlat[0] !== BADNUM) {
+                var lonlat2 = [Lib.modHalf(lonlat[0], 360), lonlat[1]];
+                var xy = [xa.c2p(lonlat2), ya.c2p(lonlat2)];
+
+                if(selectionTester.contains(xy, null, i, searchInfo)) {
+                    selection.push({
+                        pointNumber: i,
+                        lon: lonlat[0],
+                        lat: lonlat[1]
+                    });
+                    di.selected = 1;
+                } else {
+                    di.selected = 0;
+                }
             }
         }
     }

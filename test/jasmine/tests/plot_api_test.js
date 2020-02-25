@@ -1,23 +1,25 @@
 var Plotly = require('@lib/index');
-var PlotlyInternal = require('@src/plotly');
+var plotApi = require('@src/plot_api/plot_api');
 var Plots = require('@src/plots/plots');
 var Lib = require('@src/lib');
 var Queue = require('@src/lib/queue');
 var Scatter = require('@src/traces/scatter');
 var Bar = require('@src/traces/bar');
 var Legend = require('@src/components/legend');
+var Axes = require('@src/plots/cartesian/axes');
 var pkg = require('../../../package.json');
 var subroutines = require('@src/plot_api/subroutines');
+var manageArrays = require('@src/plot_api/manage_arrays');
 var helpers = require('@src/plot_api/helpers');
 var editTypes = require('@src/plot_api/edit_types');
 
 var d3 = require('d3');
 var createGraphDiv = require('../assets/create_graph_div');
 var destroyGraphDiv = require('../assets/destroy_graph_div');
-var fail = require('../assets/fail_test');
+var failTest = require('../assets/fail_test');
+var negateIf = require('../assets/negate_if');
 var checkTicks = require('../assets/custom_assertions').checkTicks;
 var supplyAllDefaults = require('../assets/supply_defaults');
-
 
 describe('Test plot api', function() {
     'use strict';
@@ -47,7 +49,9 @@ describe('Test plot api', function() {
                 expect(gd.layout.height).toEqual(500);
                 expect(gd.data.length).toEqual(1);
                 expect(gd._context.editable).toBe(true);
-            }).catch(fail).then(done);
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('accepts gd and an object as args', function(done) {
@@ -62,7 +66,9 @@ describe('Test plot api', function() {
                 expect(gd.data.length).toEqual(1);
                 expect(gd._transitionData._frames.length).toEqual(1);
                 expect(gd._context.editable).toBe(true);
-            }).catch(fail).then(done);
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('allows adding more frames to the initial set', function(done) {
@@ -87,7 +93,9 @@ describe('Test plot api', function() {
                 expect(gd._transitionData._frames[0].name).toEqual('frame1');
                 expect(gd._transitionData._frames[1].name).toEqual('frame2');
                 expect(gd._transitionData._frames[2].name).toEqual('frame3');
-            }).catch(fail).then(done);
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('should emit afterplot event after plotting is done', function(done) {
@@ -102,6 +110,7 @@ describe('Test plot api', function() {
             promise.then(function() {
                 expect(afterPlot).toBe(true);
             })
+            .catch(failTest)
             .then(done);
         });
     });
@@ -125,72 +134,75 @@ describe('Test plot api', function() {
         });
 
         it('should update the plot clipPath if the plot is resized', function(done) {
-
             Plotly.plot(gd, [{ x: [1, 2, 3], y: [1, 2, 3] }], { width: 500, height: 500 })
-                .then(function() {
-                    return Plotly.relayout(gd, { width: 400, height: 400 });
-                })
-                .then(function() {
-                    var uid = gd._fullLayout._uid;
+            .then(function() {
+                return Plotly.relayout(gd, { width: 400, height: 400 });
+            })
+            .then(function() {
+                var uid = gd._fullLayout._uid;
 
-                    var plotClip = document.getElementById('clip' + uid + 'xyplot'),
-                        clipRect = plotClip.children[0],
-                        clipWidth = +clipRect.getAttribute('width'),
-                        clipHeight = +clipRect.getAttribute('height');
+                var plotClip = document.getElementById('clip' + uid + 'xyplot');
+                var clipRect = plotClip.children[0];
+                var clipWidth = +clipRect.getAttribute('width');
+                var clipHeight = +clipRect.getAttribute('height');
 
-                    expect(clipWidth).toBe(240);
-                    expect(clipHeight).toBe(220);
-                })
-                .then(done);
+                expect(clipWidth).toBe(240);
+                expect(clipHeight).toBe(220);
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('sets null values to their default', function(done) {
             var defaultWidth;
             Plotly.plot(gd, [{ x: [1, 2, 3], y: [1, 2, 3] }])
-                .then(function() {
-                    defaultWidth = gd._fullLayout.width;
-                    return Plotly.relayout(gd, { width: defaultWidth - 25});
-                })
-                .then(function() {
-                    expect(gd._fullLayout.width).toBe(defaultWidth - 25);
-                    return Plotly.relayout(gd, { width: null });
-                })
-                .then(function() {
-                    expect(gd._fullLayout.width).toBe(defaultWidth);
-                })
-                .then(done);
+            .then(function() {
+                defaultWidth = gd._fullLayout.width;
+                return Plotly.relayout(gd, { width: defaultWidth - 25});
+            })
+            .then(function() {
+                expect(gd._fullLayout.width).toBe(defaultWidth - 25);
+                return Plotly.relayout(gd, { width: null });
+            })
+            .then(function() {
+                expect(gd._fullLayout.width).toBe(defaultWidth);
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('ignores undefined values', function(done) {
             var defaultWidth;
             Plotly.plot(gd, [{ x: [1, 2, 3], y: [1, 2, 3] }])
-                .then(function() {
-                    defaultWidth = gd._fullLayout.width;
-                    return Plotly.relayout(gd, { width: defaultWidth - 25});
-                })
-                .then(function() {
-                    expect(gd._fullLayout.width).toBe(defaultWidth - 25);
-                    return Plotly.relayout(gd, { width: undefined });
-                })
-                .then(function() {
-                    expect(gd._fullLayout.width).toBe(defaultWidth - 25);
-                })
-                .then(done);
+            .then(function() {
+                defaultWidth = gd._fullLayout.width;
+                return Plotly.relayout(gd, { width: defaultWidth - 25});
+            })
+            .then(function() {
+                expect(gd._fullLayout.width).toBe(defaultWidth - 25);
+                return Plotly.relayout(gd, { width: undefined });
+            })
+            .then(function() {
+                expect(gd._fullLayout.width).toBe(defaultWidth - 25);
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('can set items in array objects', function(done) {
             Plotly.plot(gd, [{ x: [1, 2, 3], y: [1, 2, 3] }])
-                .then(function() {
-                    return Plotly.relayout(gd, {rando: [1, 2, 3]});
-                })
-                .then(function() {
-                    expect(gd.layout.rando).toEqual([1, 2, 3]);
-                    return Plotly.relayout(gd, {'rando[1]': 45});
-                })
-                .then(function() {
-                    expect(gd.layout.rando).toEqual([1, 45, 3]);
-                })
-                .then(done);
+            .then(function() {
+                return Plotly.relayout(gd, {rando: [1, 2, 3]});
+            })
+            .then(function() {
+                expect(gd.layout.rando).toEqual([1, 2, 3]);
+                return Plotly.relayout(gd, {'rando[1]': 45});
+            })
+            .then(function() {
+                expect(gd.layout.rando).toEqual([1, 45, 3]);
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('errors if child and parent are edited together', function(done) {
@@ -199,34 +211,34 @@ describe('Test plot api', function() {
             var edit3 = {'rando[1].d': 4};
 
             Plotly.plot(gd, [{ x: [1, 2, 3], y: [1, 2, 3] }])
-                .then(function() {
-                    return Plotly.relayout(gd, edit1);
-                })
-                .then(function() {
-                    expect(gd.layout.rando).toEqual([{a: 1}, {b: 2}]);
-                    return Plotly.relayout(gd, edit2);
-                })
-                .then(function() {
-                    expect(gd.layout.rando).toEqual([{a: 1}, {c: 3}]);
-                    return Plotly.relayout(gd, edit3);
-                })
-                .then(function() {
-                    expect(gd.layout.rando).toEqual([{a: 1}, {c: 3, d: 4}]);
+            .then(function() {
+                return Plotly.relayout(gd, edit1);
+            })
+            .then(function() {
+                expect(gd.layout.rando).toEqual([{a: 1}, {b: 2}]);
+                return Plotly.relayout(gd, edit2);
+            })
+            .then(function() {
+                expect(gd.layout.rando).toEqual([{a: 1}, {c: 3}]);
+                return Plotly.relayout(gd, edit3);
+            })
+            .then(function() {
+                expect(gd.layout.rando).toEqual([{a: 1}, {c: 3, d: 4}]);
 
-                    // OK, setup is done - test the failing combinations
-                    [[edit1, edit2], [edit1, edit3], [edit2, edit3]].forEach(function(v) {
-                        // combine properties in both orders - which results in the same object
-                        // but the properties are iterated in opposite orders
-                        expect(function() {
-                            return Plotly.relayout(gd, Lib.extendFlat({}, v[0], v[1]));
-                        }).toThrow();
-                        expect(function() {
-                            return Plotly.relayout(gd, Lib.extendFlat({}, v[1], v[0]));
-                        }).toThrow();
-                    });
-                })
-                .catch(fail)
-                .then(done);
+                // OK, setup is done - test the failing combinations
+                [[edit1, edit2], [edit1, edit3], [edit2, edit3]].forEach(function(v) {
+                    // combine properties in both orders - which results in the same object
+                    // but the properties are iterated in opposite orders
+                    expect(function() {
+                        return Plotly.relayout(gd, Lib.extendFlat({}, v[0], v[1]));
+                    }).toThrow();
+                    expect(function() {
+                        return Plotly.relayout(gd, Lib.extendFlat({}, v[1], v[0]));
+                    }).toThrow();
+                });
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('can set empty text nodes', function(done) {
@@ -239,16 +251,17 @@ describe('Test plot api', function() {
             var scatter = null;
             var oldHeight = 0;
             Plotly.plot(gd, data)
-                .then(function() {
-                    scatter = document.getElementsByClassName('scatter')[0];
-                    oldHeight = scatter.getBoundingClientRect().height;
-                    return Plotly.relayout(gd, 'yaxis.range', [0.5, 0.5, 0.5]);
-                })
-                .then(function() {
-                    var newHeight = scatter.getBoundingClientRect().height;
-                    expect(newHeight).toEqual(oldHeight);
-                })
-                .then(done);
+            .then(function() {
+                scatter = document.getElementsByClassName('scatter')[0];
+                oldHeight = scatter.getBoundingClientRect().height;
+                return Plotly.relayout(gd, 'yaxis.range', [0.5, 0.5, 0.5]);
+            })
+            .then(function() {
+                var newHeight = scatter.getBoundingClientRect().height;
+                expect(newHeight).toEqual(oldHeight);
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('should skip empty axis objects', function(done) {
@@ -262,7 +275,7 @@ describe('Test plot api', function() {
             .then(function() {
                 return Plotly.relayout(gd, { zaxis: {} });
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -335,7 +348,7 @@ describe('Test plot api', function() {
                 expect(getShapePos()).toBeCloseToArray([350, 369]);
                 expect(getImagePos()).toBeCloseToArray([170, 272.52]);
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -374,7 +387,7 @@ describe('Test plot api', function() {
                 expect(gd.layout.yaxis.autorange).toBe(false);
                 expect(gd.layout.yaxis.range[1]).toBe(3);
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -393,7 +406,7 @@ describe('Test plot api', function() {
             .then(function() {
                 expect(gd.layout.scene.aspectmode).toBe('auto');
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -418,7 +431,7 @@ describe('Test plot api', function() {
                 expect(gd.layout.xaxis.tick0).toBeUndefined();
                 expect(gd.layout.yaxis.dtick).toBeUndefined();
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -440,7 +453,7 @@ describe('Test plot api', function() {
                 expect(gd.layout.xaxis.range).toBeCloseToArray([1, 10], 5);
                 expect(gd.layout.yaxis.range).toBeCloseToArray([0, 1], 5);
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -466,7 +479,7 @@ describe('Test plot api', function() {
                 // make sure it's a real loggy range
                 expect(xRange[0]).toBeLessThan(1);
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -491,8 +504,69 @@ describe('Test plot api', function() {
                 expect(gd._fullLayout.xaxis.type).toBe('linear');
                 expect(gd.layout.xaxis.range).toEqual([0.6, 1.7]);
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
+        });
+
+        it('updates autosize/width/height correctly', function(done) {
+            function assertSizeAndThen(width, height, auto, msg, next) {
+                return function() {
+                    expect(gd._fullLayout.width).toBe(width, msg);
+                    expect(gd._fullLayout.height).toBe(height, msg);
+                    expect(gd._fullLayout.autosize).toBe(auto, msg);
+                    if(!auto) {
+                        expect(gd.layout.width).toBe(width, msg);
+                        expect(gd.layout.height).toBe(height, msg);
+                    }
+
+                    if(next) return Plotly.relayout(gd, next);
+                };
+            }
+
+            // give gd css sizing to be picked up by autosize
+            gd.style.width = '543px';
+            gd.style.height = '432px';
+
+            Plotly.newPlot(gd, [{y: [1, 3, 2]}])
+            .then(assertSizeAndThen(543, 432, true, 'initial',
+                {autosize: false}))
+            .then(assertSizeAndThen(543, 432, false, 'autosize false with no sizes',
+                {autosize: true}))
+            .then(assertSizeAndThen(543, 432, true, 'back to autosized',
+                {width: 600}))
+            .then(assertSizeAndThen(600, 432, false, 'explicit width causes explicit height',
+                {width: null}))
+            .then(assertSizeAndThen(543, 432, true, 'removed width',
+                {height: 500, width: 700}))
+            .then(assertSizeAndThen(700, 500, false, 'explicit height and width',
+                {autosize: true}))
+            .then(assertSizeAndThen(543, 432, true, 'final back to autosize'))
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('passes update data back to plotly_relayout unmodified ' +
+          'even if deprecated attributes have been used', function(done) {
+            Plotly.newPlot(gd, [{y: [1, 3, 2]}]);
+
+            gd.on('plotly_relayout', function(eventData) {
+                expect(eventData).toEqual({
+                    'title': 'Plotly chart',
+                    'xaxis.title': 'X',
+                    'xaxis.titlefont': {color: 'green'},
+                    'yaxis.title': 'Y',
+                    'polar.radialaxis.title': 'Radial'
+                });
+                done();
+            });
+
+            Plotly.relayout(gd, {
+                'title': 'Plotly chart',
+                'xaxis.title': 'X',
+                'xaxis.titlefont': {color: 'green'},
+                'yaxis.title': 'Y',
+                'polar.radialaxis.title': 'Radial'
+            });
         });
     });
 
@@ -503,27 +577,50 @@ describe('Test plot api', function() {
             'layoutStyles',
             'doTicksRelayout',
             'doModeBar',
-            'doCamera'
+            'doCamera',
+            'doAutoRangeAndConstraints',
+            'drawData',
+            'finalDraw',
+            'drawMarginPushers'
         ];
+
+        var gd;
 
         beforeAll(function() {
             mockedMethods.forEach(function(m) {
                 spyOn(subroutines, m);
             });
+            spyOn(Axes, 'draw');
+            spyOn(Plots, 'supplyDefaults').and.callThrough();
         });
 
         function mock(gd) {
             mockedMethods.forEach(function(m) {
                 subroutines[m].calls.reset();
             });
+            Axes.draw.calls.reset();
 
             supplyAllDefaults(gd);
+            Plots.supplyDefaults.calls.reset();
             Plots.doCalcdata(gd);
+            gd.emit = function() {};
             return gd;
         }
 
-        it('should trigger recalc when switching into select or lasso dragmode', function() {
-            var gd = mock({
+        function expectModeBarOnly(msg) {
+            expect(gd.calcdata).toBeDefined(msg);
+            expect(subroutines.doModeBar.calls.count()).toBeGreaterThan(0, msg);
+            expect(subroutines.layoutReplot.calls.count()).toBe(0, msg);
+        }
+
+        function expectReplot(msg) {
+            expect(gd.calcdata).toBeDefined(msg);
+            expect(subroutines.doModeBar.calls.count()).toBe(0, msg);
+            expect(subroutines.layoutReplot.calls.count()).toBeGreaterThan(0, msg);
+        }
+
+        it('should trigger replot (but not recalc) when switching into select or lasso dragmode for scattergl traces', function() {
+            gd = mock({
                 data: [{
                     type: 'scattergl',
                     x: [1, 2, 3],
@@ -534,41 +631,134 @@ describe('Test plot api', function() {
                 }
             });
 
-            function expectModeBarOnly() {
-                expect(gd.calcdata).toBeDefined();
-                expect(subroutines.doModeBar).toHaveBeenCalled();
-                expect(subroutines.layoutReplot).not.toHaveBeenCalled();
-            }
-
-            function expectRecalc() {
-                expect(gd.calcdata).toBeUndefined();
-                expect(subroutines.doModeBar).not.toHaveBeenCalled();
-                expect(subroutines.layoutReplot).toHaveBeenCalled();
-            }
-
             Plotly.relayout(gd, 'dragmode', 'pan');
-            expectModeBarOnly();
+            expectModeBarOnly('pan');
 
             Plotly.relayout(mock(gd), 'dragmode', 'lasso');
-            expectRecalc();
+            expectReplot('lasso 1');
 
             Plotly.relayout(mock(gd), 'dragmode', 'select');
-            expectModeBarOnly();
+            expectModeBarOnly('select 1');
 
             Plotly.relayout(mock(gd), 'dragmode', 'lasso');
-            expectModeBarOnly();
+            expectModeBarOnly('lasso 2');
 
             Plotly.relayout(mock(gd), 'dragmode', 'zoom');
-            expectModeBarOnly();
+            expectModeBarOnly('zoom');
 
             Plotly.relayout(mock(gd), 'dragmode', 'select');
-            expectRecalc();
+            expectReplot('select 2');
+        });
+
+        it('should trigger replot (but not recalc) when changing attributes that affect axis length/range', function() {
+            // but axis.autorange itself is NOT here, because setting it from false to true requires an
+            // autorange so that we calculate _min and _max, which we ignore if autorange is off.
+            var axLayoutEdits = {
+                'xaxis.rangemode': 'tozero',
+                'xaxis.domain': [0.2, 0.8],
+                'xaxis.domain[1]': 0.7,
+                'yaxis.domain': [0.1, 0.9],
+                'yaxis.domain[0]': 0.3,
+                'yaxis.overlaying': 'y2',
+                'margin.l': 50,
+                'margin.r': 20,
+                'margin.t': 1,
+                'margin.b': 5,
+                'margin.autoexpand': false,
+                height: 567,
+                width: 432,
+                'grid.rows': 2,
+                'grid.columns': 3,
+                'grid.xgap': 0.5,
+                'grid.ygap': 0,
+                'grid.roworder': 'bottom to top',
+                'grid.pattern': 'independent',
+                'grid.yaxes': ['y2', 'y'],
+                'grid.xaxes[0]': 'x2',
+                'grid.domain': {x: [0, 0.4], y: [0.6, 1]},
+                'grid.domain.x': [0.01, 0.99],
+                'grid.domain.y[0]': 0.33,
+                'grid.subplots': [['', 'xy'], ['x2y2', '']],
+                'grid.subplots[1][1]': 'xy'
+            };
+
+            for(var attr in axLayoutEdits) {
+                gd = mock({
+                    data: [{y: [1, 2]}, {y: [4, 3], xaxis: 'x2', yaxis: 'y2'}],
+                    layout: {
+                        xaxis2: {domain: [0.6, 0.9]},
+                        yaxis2: {domain: [0.6, 0.9]}
+                    }
+                });
+
+                Plotly.relayout(gd, attr, axLayoutEdits[attr]);
+                expectReplot(attr);
+            }
+        });
+
+        it('should trigger minimal sequence for cartesian axis range updates', function() {
+            var seq = ['doAutoRangeAndConstraints', 'drawData', 'finalDraw'];
+
+            function _assert(msg) {
+                expect(gd.calcdata).toBeDefined();
+                mockedMethods.forEach(function(m) {
+                    expect(subroutines[m].calls.count()).toBe(
+                        seq.indexOf(m) === -1 ? 0 : 1,
+                        '# of ' + m + ' calls - ' + msg
+                    );
+                });
+                expect(Axes.draw).toHaveBeenCalledTimes(1);
+                expect(Axes.draw.calls.allArgs()[0][1]).toEqual(['x']);
+                expect(Axes.draw.calls.allArgs()[0][2]).toEqual({skipTitle: true}, 'skip-axis-title argument');
+                expect(Plots.supplyDefaults).not.toHaveBeenCalled();
+            }
+
+            var specs = [
+                ['relayout', ['xaxis.range[0]', 0]],
+                ['relayout', ['xaxis.range[1]', 3]],
+                ['relayout', ['xaxis.range', [-1, 5]]],
+                ['update', [{}, {'xaxis.range': [-1, 10]}]],
+
+                ['relayout', ['xaxis.autorange', true]],
+                ['update', [{}, {'xaxis.autorange': true}]]
+            ];
+
+            specs.forEach(function(s) {
+                gd = mock({
+                    data: [{y: [1, 2, 1]}],
+                    layout: {
+                        xaxis: {range: [1, 2]}
+                    }
+                });
+
+                Plotly[s[0]](gd, s[1][0], s[1][1]);
+
+                _assert([
+                    'Plotly.', s[0],
+                    '(gd, ', JSON.stringify(s[1][0]), ', ', JSON.stringify(s[1][1]), ')'
+                ].join(''));
+            });
+        });
+
+        it('should trigger calc on axis range updates when constraints are present', function() {
+            gd = mock({
+                data: [{
+                    y: [1, 2, 1]
+                }],
+                layout: {
+                    xaxis: {constrain: 'domain'},
+                    yaxis: {scaleanchor: 'x'}
+                }
+            });
+
+            Plotly.relayout(gd, 'xaxis.range[0]', 0);
+            expect(gd.calcdata).toBeUndefined();
         });
     });
 
     describe('Plotly.restyle subroutines switchboard', function() {
         beforeEach(function() {
-            spyOn(PlotlyInternal, 'plot');
+            spyOn(plotApi, 'plot');
             spyOn(Plots, 'previousPromises');
             spyOn(Scatter, 'arraysToCalcdata');
             spyOn(Bar, 'arraysToCalcdata');
@@ -581,6 +771,7 @@ describe('Test plot api', function() {
             gd.calcdata = gd._fullData.map(function(trace) {
                 return [{x: 1, y: 1, trace: trace}];
             });
+            gd.emit = function() {};
         }
 
         it('calls Scatter.arraysToCalcdata and Plots.style on scatter styling', function() {
@@ -593,7 +784,7 @@ describe('Test plot api', function() {
             expect(Scatter.arraysToCalcdata).toHaveBeenCalled();
             expect(Bar.arraysToCalcdata).not.toHaveBeenCalled();
             expect(Plots.style).toHaveBeenCalled();
-            expect(PlotlyInternal.plot).not.toHaveBeenCalled();
+            expect(plotApi.plot).not.toHaveBeenCalled();
             // "docalc" deletes gd.calcdata - make sure this didn't happen
             expect(gd.calcdata).toBeDefined();
         });
@@ -608,7 +799,7 @@ describe('Test plot api', function() {
             expect(Scatter.arraysToCalcdata).not.toHaveBeenCalled();
             expect(Bar.arraysToCalcdata).toHaveBeenCalled();
             expect(Plots.style).toHaveBeenCalled();
-            expect(PlotlyInternal.plot).not.toHaveBeenCalled();
+            expect(plotApi.plot).not.toHaveBeenCalled();
             expect(gd.calcdata).toBeDefined();
         });
 
@@ -621,25 +812,25 @@ describe('Test plot api', function() {
             mockDefaultsAndCalc(gd);
             Plotly.restyle(gd, 'marker.color', [['red', 'green', 'blue']]);
             expect(gd.calcdata).toBeUndefined();
-            expect(PlotlyInternal.plot).toHaveBeenCalled();
+            expect(plotApi.plot).toHaveBeenCalled();
 
             mockDefaultsAndCalc(gd);
-            PlotlyInternal.plot.calls.reset();
+            plotApi.plot.calls.reset();
             Plotly.restyle(gd, 'marker.color', 'yellow');
             expect(gd.calcdata).toBeUndefined();
-            expect(PlotlyInternal.plot).toHaveBeenCalled();
+            expect(plotApi.plot).toHaveBeenCalled();
 
             mockDefaultsAndCalc(gd);
-            PlotlyInternal.plot.calls.reset();
+            plotApi.plot.calls.reset();
             Plotly.restyle(gd, 'marker.color', 'blue');
             expect(gd.calcdata).toBeDefined();
-            expect(PlotlyInternal.plot).not.toHaveBeenCalled();
+            expect(plotApi.plot).not.toHaveBeenCalled();
 
             mockDefaultsAndCalc(gd);
-            PlotlyInternal.plot.calls.reset();
+            plotApi.plot.calls.reset();
             Plotly.restyle(gd, 'marker.color', [['red', 'blue', 'green']]);
             expect(gd.calcdata).toBeUndefined();
-            expect(PlotlyInternal.plot).toHaveBeenCalled();
+            expect(plotApi.plot).toHaveBeenCalled();
         });
 
         it('should do full replot when arrayOk base attributes are updated', function() {
@@ -651,25 +842,25 @@ describe('Test plot api', function() {
             mockDefaultsAndCalc(gd);
             Plotly.restyle(gd, 'hoverlabel.bgcolor', [['red', 'green', 'blue']]);
             expect(gd.calcdata).toBeUndefined();
-            expect(PlotlyInternal.plot).toHaveBeenCalled();
+            expect(plotApi.plot).toHaveBeenCalled();
 
             mockDefaultsAndCalc(gd);
-            PlotlyInternal.plot.calls.reset();
+            plotApi.plot.calls.reset();
             Plotly.restyle(gd, 'hoverlabel.bgcolor', 'yellow');
             expect(gd.calcdata).toBeUndefined();
-            expect(PlotlyInternal.plot).toHaveBeenCalled();
+            expect(plotApi.plot).toHaveBeenCalled();
 
             mockDefaultsAndCalc(gd);
-            PlotlyInternal.plot.calls.reset();
+            plotApi.plot.calls.reset();
             Plotly.restyle(gd, 'hoverlabel.bgcolor', 'blue');
             expect(gd.calcdata).toBeDefined();
-            expect(PlotlyInternal.plot).not.toHaveBeenCalled();
+            expect(plotApi.plot).not.toHaveBeenCalled();
 
             mockDefaultsAndCalc(gd);
-            PlotlyInternal.plot.calls.reset();
+            plotApi.plot.calls.reset();
             Plotly.restyle(gd, 'hoverlabel.bgcolor', [['red', 'blue', 'green']]);
             expect(gd.calcdata).toBeUndefined();
-            expect(PlotlyInternal.plot).toHaveBeenCalled();
+            expect(plotApi.plot).toHaveBeenCalled();
         });
 
         it('should do full replot when attribute container are updated', function() {
@@ -688,7 +879,7 @@ describe('Test plot api', function() {
                 }
             });
             expect(gd.calcdata).toBeUndefined();
-            expect(PlotlyInternal.plot).toHaveBeenCalled();
+            expect(plotApi.plot).toHaveBeenCalled();
         });
 
         it('calls plot on xgap and ygap styling', function() {
@@ -699,10 +890,10 @@ describe('Test plot api', function() {
 
             mockDefaultsAndCalc(gd);
             Plotly.restyle(gd, {'xgap': 2});
-            expect(PlotlyInternal.plot).toHaveBeenCalled();
+            expect(plotApi.plot).toHaveBeenCalled();
 
             Plotly.restyle(gd, {'ygap': 2});
-            expect(PlotlyInternal.plot.calls.count()).toEqual(2);
+            expect(plotApi.plot.calls.count()).toEqual(2);
         });
 
         it('should clear calcdata when restyling \'zmin\' and \'zmax\' on contour traces', function() {
@@ -725,16 +916,16 @@ describe('Test plot api', function() {
 
             mocks.forEach(function(gd) {
                 mockDefaultsAndCalc(gd);
-                PlotlyInternal.plot.calls.reset();
+                plotApi.plot.calls.reset();
                 Plotly.restyle(gd, 'zmin', 0);
                 expect(gd.calcdata).toBeUndefined();
-                expect(PlotlyInternal.plot).toHaveBeenCalled();
+                expect(plotApi.plot).toHaveBeenCalled();
 
                 mockDefaultsAndCalc(gd);
-                PlotlyInternal.plot.calls.reset();
+                plotApi.plot.calls.reset();
                 Plotly.restyle(gd, 'zmax', 10);
                 expect(gd.calcdata).toBeUndefined();
-                expect(PlotlyInternal.plot).toHaveBeenCalled();
+                expect(plotApi.plot).toHaveBeenCalled();
             });
         });
 
@@ -758,16 +949,16 @@ describe('Test plot api', function() {
 
             mocks.forEach(function(gd) {
                 mockDefaultsAndCalc(gd);
-                PlotlyInternal.plot.calls.reset();
+                plotApi.plot.calls.reset();
                 Plotly.restyle(gd, 'zmin', 0);
                 expect(gd.calcdata).toBeDefined();
-                expect(PlotlyInternal.plot).toHaveBeenCalled();
+                expect(plotApi.plot).toHaveBeenCalled();
 
                 mockDefaultsAndCalc(gd);
-                PlotlyInternal.plot.calls.reset();
+                plotApi.plot.calls.reset();
                 Plotly.restyle(gd, 'zmax', 10);
                 expect(gd.calcdata).toBeDefined();
-                expect(PlotlyInternal.plot).toHaveBeenCalled();
+                expect(plotApi.plot).toHaveBeenCalled();
             });
         });
 
@@ -786,6 +977,18 @@ describe('Test plot api', function() {
             // Check to see that the color is unaffected:
             Plotly.restyle(gd, {'marker.color': undefined});
             expect(gd._fullData[0].marker.color).toBe('blue');
+        });
+
+        it('ignores invalid trace indices', function() {
+            var gd = {
+                data: [{x: [1, 2, 3], y: [1, 2, 3], type: 'scatter'}],
+                layout: {}
+            };
+
+            mockDefaultsAndCalc(gd);
+
+            // Call restyle on an invalid trace indice
+            Plotly.restyle(gd, {'type': 'scatter', 'marker.color': 'red'}, [1]);
         });
 
         it('restores null values to defaults', function() {
@@ -850,21 +1053,20 @@ describe('Test plot api', function() {
 
         it('should redo auto z/contour when editing z array', function(done) {
             Plotly.plot(gd, [{type: 'contour', z: [[1, 2], [3, 4]]}]).then(function() {
-                expect(gd.data[0].zauto).toBe(true, gd.data[0]);
-                expect(gd.data[0].zmin).toBe(1);
-                expect(gd.data[0].zmax).toBe(4);
-
+                expect(gd._fullData[0].zauto).toBe(true);
+                expect(gd._fullData[0].zmin).toBe(1);
+                expect(gd._fullData[0].zmax).toBe(4);
                 expect(gd.data[0].autocontour).toBe(true);
                 expect(gd.data[0].contours).toEqual({start: 1.5, end: 3.5, size: 0.5});
 
                 return Plotly.restyle(gd, {'z[0][0]': 10});
             }).then(function() {
-                expect(gd.data[0].zmin).toBe(2);
-                expect(gd.data[0].zmax).toBe(10);
-
+                expect(gd._fullData[0].zauto).toBe(true);
+                expect(gd._fullData[0].zmin).toBe(2);
+                expect(gd._fullData[0].zmax).toBe(10);
                 expect(gd.data[0].contours).toEqual({start: 3, end: 9, size: 1});
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -874,34 +1076,34 @@ describe('Test plot api', function() {
             var edit3 = {'rando[1].d': 4};
 
             Plotly.plot(gd, [{x: [1, 2, 3], y: [1, 2, 3], type: 'scatter'}])
-                .then(function() {
-                    return Plotly.restyle(gd, edit1);
-                })
-                .then(function() {
-                    expect(gd.data[0].rando).toEqual([{a: 1}, {b: 2}]);
-                    return Plotly.restyle(gd, edit2);
-                })
-                .then(function() {
-                    expect(gd.data[0].rando).toEqual([{a: 1}, {c: 3}]);
-                    return Plotly.restyle(gd, edit3);
-                })
-                .then(function() {
-                    expect(gd.data[0].rando).toEqual([{a: 1}, {c: 3, d: 4}]);
+            .then(function() {
+                return Plotly.restyle(gd, edit1);
+            })
+            .then(function() {
+                expect(gd.data[0].rando).toEqual([{a: 1}, {b: 2}]);
+                return Plotly.restyle(gd, edit2);
+            })
+            .then(function() {
+                expect(gd.data[0].rando).toEqual([{a: 1}, {c: 3}]);
+                return Plotly.restyle(gd, edit3);
+            })
+            .then(function() {
+                expect(gd.data[0].rando).toEqual([{a: 1}, {c: 3, d: 4}]);
 
-                    // OK, setup is done - test the failing combinations
-                    [[edit1, edit2], [edit1, edit3], [edit2, edit3]].forEach(function(v) {
-                        // combine properties in both orders - which results in the same object
-                        // but the properties are iterated in opposite orders
-                        expect(function() {
-                            return Plotly.restyle(gd, Lib.extendFlat({}, v[0], v[1]));
-                        }).toThrow();
-                        expect(function() {
-                            return Plotly.restyle(gd, Lib.extendFlat({}, v[1], v[0]));
-                        }).toThrow();
-                    });
-                })
-                .catch(fail)
-                .then(done);
+                // OK, setup is done - test the failing combinations
+                [[edit1, edit2], [edit1, edit3], [edit2, edit3]].forEach(function(v) {
+                    // combine properties in both orders - which results in the same object
+                    // but the properties are iterated in opposite orders
+                    expect(function() {
+                        return Plotly.restyle(gd, Lib.extendFlat({}, v[0], v[1]));
+                    }).toThrow();
+                    expect(function() {
+                        return Plotly.restyle(gd, Lib.extendFlat({}, v[1], v[0]));
+                    }).toThrow();
+                });
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('turns off zauto when you edit zmin or zmax', function(done) {
@@ -909,10 +1111,10 @@ describe('Test plot api', function() {
             var zmax1 = 10;
 
             function check(auto, msg) {
-                expect(gd.data[0].zmin).negateIf(auto).toBe(zmin0, msg);
-                expect(gd.data[0].zauto).toBe(auto, msg);
-                expect(gd.data[1].zmax).negateIf(auto).toBe(zmax1, msg);
-                expect(gd.data[1].zauto).toBe(auto, msg);
+                negateIf(auto, expect(gd._fullData[0].zmin)).toBe(zmin0, msg);
+                expect(gd._fullData[0].zauto).toBe(auto, msg);
+                negateIf(auto, expect(gd._fullData[1].zmax)).toBe(zmax1, msg);
+                expect(gd._fullData[1].zauto).toBe(auto, msg);
             }
 
             Plotly.plot(gd, [
@@ -937,27 +1139,29 @@ describe('Test plot api', function() {
             .then(function() {
                 check(false, 'undo');
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
         it('turns off cauto (autocolorscale) when you edit cmin or cmax (colorscale)', function(done) {
-            var autocscale = require('@src/components/colorscale/scales').Reds;
+            var scales = require('@src/components/colorscale/scales').scales;
 
+            var autocscale = scales.Reds;
+            var mcscl0 = 'Rainbow';
+            var mlcscl1 = 'Greens';
             var mcmin0 = 3;
-            var mcscl0 = 'rainbow';
             var mlcmax1 = 6;
-            var mlcscl1 = 'greens';
 
-            function check(auto, msg) {
-                expect(gd.data[0].marker.cauto).toBe(auto, msg);
-                expect(gd.data[0].marker.cmin).negateIf(auto).toBe(mcmin0);
-                expect(gd._fullData[0].marker.autocolorscale).toBe(auto, msg);
-                expect(gd.data[0].marker.colorscale).toEqual(auto ? autocscale : mcscl0);
-                expect(gd.data[1].marker.line.cauto).toBe(auto, msg);
-                expect(gd.data[1].marker.line.cmax).negateIf(auto).toBe(mlcmax1);
-                expect(gd._fullData[1].marker.line.autocolorscale).toBe(auto, msg);
-                expect(gd.data[1].marker.line.colorscale).toEqual(auto ? autocscale : mlcscl1);
+            function check(auto, autocolorscale, msg) {
+                expect(gd._fullData[0].marker.cauto).toBe(auto, msg);
+                negateIf(auto, expect(gd._fullData[0].marker.cmin)).toBe(mcmin0);
+                expect(gd._fullData[0].marker.autocolorscale).toBe(autocolorscale, msg);
+                expect(gd._fullData[0].marker.colorscale).toEqual(auto ? autocscale : scales[mcscl0]);
+
+                expect(gd._fullData[1].marker.line.cauto).toBe(auto, msg);
+                negateIf(auto, expect(gd._fullData[1].marker.line.cmax)).toBe(mlcmax1);
+                expect(gd._fullData[1].marker.line.autocolorscale).toBe(autocolorscale, msg);
+                expect(gd._fullData[1].marker.line.colorscale).toEqual(auto ? autocscale : scales[mlcscl1]);
             }
 
             Plotly.plot(gd, [
@@ -965,45 +1169,128 @@ describe('Test plot api', function() {
                 {y: [2, 1], mode: 'markers', marker: {line: {width: 2, color: [3, 4]}}}
             ])
             .then(function() {
-                check(true, 'initial');
+                check(true, true, 'initial');
                 return Plotly.restyle(gd, {'marker.cmin': mcmin0, 'marker.colorscale': mcscl0}, null, [0]);
             })
             .then(function() {
                 return Plotly.restyle(gd, {'marker.line.cmax': mlcmax1, 'marker.line.colorscale': mlcscl1}, null, [1]);
             })
             .then(function() {
-                check(false, 'set min/max/scale');
+                check(false, false, 'set min/max/scale');
                 return Plotly.restyle(gd, {'marker.cauto': true, 'marker.autocolorscale': true}, null, [0]);
             })
             .then(function() {
                 return Plotly.restyle(gd, {'marker.line.cauto': true, 'marker.line.autocolorscale': true}, null, [1]);
             })
             .then(function() {
-                check(true, 'reset');
+                check(true, true, 'reset');
                 return Queue.undo(gd);
             })
             .then(function() {
                 return Queue.undo(gd);
             })
             .then(function() {
-                check(false, 'undo');
+                check(false, false, 'undo');
             })
-            .catch(fail)
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('turns on cauto when cmid is edited', function(done) {
+            function _assert(msg, exp) {
+                return function() {
+                    var mk = gd._fullData[0].marker;
+                    for(var k in exp) {
+                        expect(mk[k]).toBe(exp[k], [msg, k].join(' - '));
+                    }
+                };
+            }
+
+            function _restyle(arg) {
+                return function() { return Plotly.restyle(gd, arg); };
+            }
+
+            Plotly.plot(gd, [{
+                mode: 'markers',
+                y: [1, 2, 1],
+                marker: { color: [1, -1, 4] }
+            }])
+            .then(_assert('base', {
+                cauto: true,
+                cmid: undefined,
+                cmin: -1,
+                cmax: 4
+            }))
+            .then(_restyle({'marker.cmid': 0}))
+            .then(_assert('set cmid=0', {
+                cauto: true,
+                cmid: 0,
+                cmin: -4,
+                cmax: 4
+            }))
+            .then(_restyle({'marker.cmid': -2}))
+            .then(_assert('set cmid=-2', {
+                cauto: true,
+                cmid: -2,
+                cmin: -8,
+                cmax: 4
+            }))
+            .then(_restyle({'marker.cmid': 2}))
+            .then(_assert('set cmid=2', {
+                cauto: true,
+                cmid: 2,
+                cmin: -1,
+                cmax: 5
+            }))
+            .then(_restyle({'marker.cmin': 0}))
+            .then(_assert('set cmin=0', {
+                cauto: false,
+                cmid: undefined,
+                cmin: 0,
+                cmax: 5
+            }))
+            .then(_restyle({'marker.cmax': 10}))
+            .then(_assert('set cmin=0 + cmax=10', {
+                cauto: false,
+                cmid: undefined,
+                cmin: 0,
+                cmax: 10
+            }))
+            .then(_restyle({'marker.cauto': true, 'marker.cmid': null}))
+            .then(_assert('back to cauto=true', {
+                cauto: true,
+                cmid: undefined,
+                cmin: -1,
+                cmax: 4
+            }))
+            .catch(failTest)
             .then(done);
         });
 
         it('turns off autobin when you edit bin specs', function(done) {
+            // test retained (modified) for backward compat with new autobin logic
             var start0 = 0.2;
             var end1 = 6;
             var size1 = 0.5;
 
             function check(auto, msg) {
-                expect(gd.data[0].autobinx).toBe(auto, msg);
-                expect(gd.data[0].xbins.start).negateIf(auto).toBe(start0, msg);
-                expect(gd.data[1].autobinx).toBe(auto, msg);
-                expect(gd.data[1].autobiny).toBe(auto, msg);
-                expect(gd.data[1].xbins.end).negateIf(auto).toBe(end1, msg);
-                expect(gd.data[1].ybins.size).negateIf(auto).toBe(size1, msg);
+                expect(gd.data[0].autobinx).toBeUndefined(msg);
+                expect(gd.data[1].autobinx).toBeUndefined(msg);
+                expect(gd.data[1].autobiny).toBeUndefined(msg);
+
+                if(auto) {
+                    expect(gd.data[0].xbins).toBeUndefined(msg);
+                    expect(gd.data[1].xbins).toBeUndefined(msg);
+                    expect(gd.data[1].ybins).toBeUndefined(msg);
+                } else {
+                    // we can have - and use - partial autobin now
+                    expect(gd.data[0].xbins).toEqual({start: start0});
+                    expect(gd.data[1].xbins).toEqual({end: end1});
+                    expect(gd.data[1].ybins).toEqual({size: size1});
+                    expect(gd._fullData[0].xbins.start).toBe(start0, msg);
+                    expect(gd._fullData[1].xbins.end).toBe(end1, msg);
+                    expect(gd._fullData[1].ybins.size).toBe(size1, msg);
+                }
             }
 
             Plotly.plot(gd, [
@@ -1012,23 +1299,21 @@ describe('Test plot api', function() {
             ])
             .then(function() {
                 check(true, 'initial');
-                return Plotly.restyle(gd, 'xbins.start', start0, [0]);
             })
-            .then(function() {
-                return Plotly.restyle(gd, {'xbins.end': end1, 'ybins.size': size1}, null, [1]);
-            })
+            .then(function() { return Plotly.restyle(gd, 'xbins.start', start0, [0]); })
+            .then(function() { return Plotly.restyle(gd, {'xbins.end': end1, 'ybins.size': size1}, null, [1]); })
             .then(function() {
                 check(false, 'set start/end/size');
-                return Plotly.restyle(gd, {autobinx: true, autobiny: true});
             })
+            .then(function() { return Plotly.restyle(gd, {autobinx: true, autobiny: true}); })
             .then(function() {
                 check(true, 'reset');
-                return Queue.undo(gd);
             })
+            .then(function() { return Queue.undo(gd); })
             .then(function() {
                 check(false, 'undo');
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -1039,8 +1324,8 @@ describe('Test plot api', function() {
             function check(auto, msg) {
                 expect(gd.data[0].autocontour).toBe(auto, msg);
                 expect(gd.data[1].autocontour).toBe(auto, msg);
-                expect(gd.data[0].contours.start).negateIf(auto).toBe(start0, msg);
-                expect(gd.data[1].contours.size).negateIf(auto).toBe(size1, msg);
+                negateIf(auto, expect(gd.data[0].contours.start)).toBe(start0, msg);
+                negateIf(auto, expect(gd.data[1].contours.size)).toBe(size1, msg);
             }
 
             Plotly.plot(gd, [
@@ -1065,34 +1350,58 @@ describe('Test plot api', function() {
             .then(function() {
                 check(false, 'undo');
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
-        it('sets x/ytype scaled when editing heatmap x0/dx/y0/dy', function(done) {
-            var x0 = 3;
-            var dy = 5;
+        function checkScaling(xyType, xyTypeIn, iIn, iOut) {
+            expect(gd._fullData[iOut].xtype).toBe(xyType);
+            expect(gd._fullData[iOut].ytype).toBe(xyType);
+            expect(gd.data[iIn].xtype).toBe(xyTypeIn);
+            expect(gd.data[iIn].ytype).toBe(xyTypeIn);
+        }
 
-            function check(scaled, msg) {
-                expect(gd.data[0].x0).negateIf(!scaled).toBe(x0, msg);
-                expect(gd.data[0].xtype).toBe(scaled ? 'scaled' : undefined, msg);
-                expect(gd.data[0].dy).negateIf(!scaled).toBe(dy, msg);
-                expect(gd.data[0].ytype).toBe(scaled ? 'scaled' : undefined, msg);
-            }
+        it('sets heatmap xtype/ytype when you edit x/y data or scaling params', function(done) {
+            Plotly.plot(gd, [{type: 'heatmap', z: [[0, 1], [2, 3]]}])
+            .then(function() {
+                // TODO would probably be better to actively default to 'array' here...
+                checkScaling(undefined, undefined, 0, 0);
+                return Plotly.restyle(gd, {x: [[2, 4]], y: [[3, 5]]}, [0]);
+            })
+            .then(function() {
+                checkScaling('array', 'array', 0, 0);
+                return Plotly.restyle(gd, {x0: 1, dy: 3}, [0]);
+            })
+            .then(function() {
+                checkScaling('scaled', 'scaled', 0, 0);
+            })
+            .catch(failTest)
+            .then(done);
+        });
 
-            Plotly.plot(gd, [{x: [1, 2, 4], y: [2, 3, 5], z: [[1, 2], [3, 4]], type: 'heatmap'}])
+        it('sets heatmap xtype/ytype even when data/fullData indices mismatch', function(done) {
+            Plotly.plot(gd, [
+                {
+                    // importantly, this is NOT a heatmap trace, so _fullData[1]
+                    // will not have the same attributes as data[1]
+                    x: [1, -1, -2, 0],
+                    y: [1, 2, 3, 1],
+                    transforms: [{type: 'groupby', groups: ['a', 'b', 'a', 'b']}]
+                },
+                {type: 'heatmap', z: [[0, 1], [2, 3]]}
+            ])
             .then(function() {
-                check(false, 'initial');
-                return Plotly.restyle(gd, {x0: x0, dy: dy});
+                checkScaling(undefined, undefined, 1, 2);
+                return Plotly.restyle(gd, {x: [[2, 4]], y: [[3, 5]]}, [1]);
             })
             .then(function() {
-                check(true, 'set x0 & dy');
-                return Queue.undo(gd);
+                checkScaling('array', 'array', 1, 2);
+                return Plotly.restyle(gd, {x0: 1, dy: 3}, [1]);
             })
             .then(function() {
-                check(false, 'undo');
+                checkScaling('scaled', 'scaled', 1, 2);
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -1103,9 +1412,9 @@ describe('Test plot api', function() {
             var dtick1 = 0.8;
 
             function check(auto, msg) {
-                expect(gd._fullData[0].colorbar.tick0).negateIf(auto).toBe(tick00, msg);
+                negateIf(auto, expect(gd._fullData[0].colorbar.tick0)).toBe(tick00, msg);
                 expect(gd._fullData[0].colorbar.tickmode).toBe(auto ? 'auto' : 'linear', msg);
-                expect(gd._fullData[1].colorbar.dtick).negateIf(auto).toBe(dtick1, msg);
+                negateIf(auto, expect(gd._fullData[1].colorbar.dtick)).toBe(dtick1, msg);
                 expect(gd._fullData[1].colorbar.tickmode).toBe(auto ? 'auto' : 'linear', msg);
             }
 
@@ -1131,7 +1440,7 @@ describe('Test plot api', function() {
             .then(function() {
                 check(false, 'undo');
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -1152,7 +1461,7 @@ describe('Test plot api', function() {
             .then(function() {
                 expect(d3.select('.cbaxis').size()).toBe(0);
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -1171,7 +1480,7 @@ describe('Test plot api', function() {
             .then(function() {
                 expect(d3.select('.cbaxis').size()).toBe(0);
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -1195,7 +1504,7 @@ describe('Test plot api', function() {
                 checkTicks('x', ['12', '12.5'], 'switched to numeric');
                 expect(gd._fullLayout.xaxis.type).toBe('linear');
             })
-            .catch(fail)
+            .catch(failTest)
             .then(done);
         });
 
@@ -1209,7 +1518,22 @@ describe('Test plot api', function() {
             .then(function() {
                 expect(gd._fullLayout.scene.zaxis.type).toBe('category');
             })
-            .catch(fail)
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('can drop Cartesian while constraints are active', function(done) {
+            Plotly.newPlot(gd, [{x: [1, 2, 3], y: [1, 3, 2], z: [2, 3, 1]}], {xaxis: {scaleanchor: 'y'}})
+            .then(function() {
+                expect(gd._fullLayout._axisConstraintGroups).toBeDefined();
+                expect(gd._fullLayout.scene !== undefined).toBe(false);
+                return Plotly.restyle(gd, {type: 'scatter3d'});
+            })
+            .then(function() {
+                expect(gd._fullLayout._axisConstraintGroups).toBeUndefined();
+                expect(gd._fullLayout.scene !== undefined).toBe(true);
+            })
+            .catch(failTest)
             .then(done);
         });
     });
@@ -1226,31 +1550,25 @@ describe('Test plot api', function() {
                     {'name': 'd'}
                 ]
             };
-            spyOn(PlotlyInternal, 'redraw');
+            spyOn(plotApi, 'redraw');
         });
 
         it('should throw an error when indices are omitted', function() {
-
             expect(function() {
                 Plotly.deleteTraces(gd);
             }).toThrow(new Error('indices must be an integer or array of integers.'));
-
         });
 
         it('should throw an error when indices are out of bounds', function() {
-
             expect(function() {
                 Plotly.deleteTraces(gd, 10);
             }).toThrow(new Error('indices must be valid indices for gd.data.'));
-
         });
 
         it('should throw an error when indices are repeated', function() {
-
             expect(function() {
                 Plotly.deleteTraces(gd, [0, 0]);
             }).toThrow(new Error('each index in indices must be unique.'));
-
         });
 
         it('should work when indices are negative', function() {
@@ -1262,8 +1580,7 @@ describe('Test plot api', function() {
 
             Plotly.deleteTraces(gd, -1);
             expect(gd.data).toEqual(expectedData);
-            expect(PlotlyInternal.redraw).toHaveBeenCalled();
-
+            expect(plotApi.redraw).toHaveBeenCalled();
         });
 
         it('should work when multiple traces are deleted', function() {
@@ -1274,8 +1591,7 @@ describe('Test plot api', function() {
 
             Plotly.deleteTraces(gd, [0, 3]);
             expect(gd.data).toEqual(expectedData);
-            expect(PlotlyInternal.redraw).toHaveBeenCalled();
-
+            expect(plotApi.redraw).toHaveBeenCalled();
         });
 
         it('should work when indices are not sorted', function() {
@@ -1286,8 +1602,7 @@ describe('Test plot api', function() {
 
             Plotly.deleteTraces(gd, [3, 0]);
             expect(gd.data).toEqual(expectedData);
-            expect(PlotlyInternal.redraw).toHaveBeenCalled();
-
+            expect(plotApi.redraw).toHaveBeenCalled();
         });
 
         it('should work with more than 10 indices', function() {
@@ -1312,10 +1627,8 @@ describe('Test plot api', function() {
 
             Plotly.deleteTraces(gd, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
             expect(gd.data).toEqual(expectedData);
-            expect(PlotlyInternal.redraw).toHaveBeenCalled();
-
+            expect(plotApi.redraw).toHaveBeenCalled();
         });
-
     });
 
     describe('Plotly.addTraces', function() {
@@ -1323,8 +1636,8 @@ describe('Test plot api', function() {
 
         beforeEach(function() {
             gd = { data: [{'name': 'a'}, {'name': 'b'}] };
-            spyOn(PlotlyInternal, 'redraw');
-            spyOn(PlotlyInternal, 'moveTraces');
+            spyOn(plotApi, 'redraw');
+            spyOn(plotApi, 'moveTraces');
         });
 
         it('should throw an error when traces is not an object or an array of objects', function() {
@@ -1346,11 +1659,9 @@ describe('Test plot api', function() {
         });
 
         it('should throw an error when traces and newIndices arrays are unequal', function() {
-
             expect(function() {
                 Plotly.addTraces(gd, [{}, {}], 2);
             }).toThrowError(Error, 'if indices is specified, traces.length must equal indices.length');
-
         });
 
         it('should throw an error when newIndices are out of bounds', function() {
@@ -1367,39 +1678,32 @@ describe('Test plot api', function() {
         it('should work when newIndices is undefined', function() {
             Plotly.addTraces(gd, [{'name': 'c'}, {'name': 'd'}]);
             expect(gd.data[2].name).toBeDefined();
-            expect(gd.data[2].uid).toBeDefined();
             expect(gd.data[3].name).toBeDefined();
-            expect(gd.data[3].uid).toBeDefined();
-            expect(PlotlyInternal.redraw).toHaveBeenCalled();
-            expect(PlotlyInternal.moveTraces).not.toHaveBeenCalled();
+            expect(plotApi.redraw).toHaveBeenCalled();
+            expect(plotApi.moveTraces).not.toHaveBeenCalled();
         });
 
         it('should work when newIndices is defined', function() {
             Plotly.addTraces(gd, [{'name': 'c'}, {'name': 'd'}], [1, 3]);
             expect(gd.data[2].name).toBeDefined();
-            expect(gd.data[2].uid).toBeDefined();
             expect(gd.data[3].name).toBeDefined();
-            expect(gd.data[3].uid).toBeDefined();
-            expect(PlotlyInternal.redraw).not.toHaveBeenCalled();
-            expect(PlotlyInternal.moveTraces).toHaveBeenCalledWith(gd, [-2, -1], [1, 3]);
+            expect(plotApi.redraw).not.toHaveBeenCalled();
+            expect(plotApi.moveTraces).toHaveBeenCalledWith(gd, [-2, -1], [1, 3]);
         });
 
         it('should work when newIndices has negative indices', function() {
             Plotly.addTraces(gd, [{'name': 'c'}, {'name': 'd'}], [-3, -1]);
             expect(gd.data[2].name).toBeDefined();
-            expect(gd.data[2].uid).toBeDefined();
             expect(gd.data[3].name).toBeDefined();
-            expect(gd.data[3].uid).toBeDefined();
-            expect(PlotlyInternal.redraw).not.toHaveBeenCalled();
-            expect(PlotlyInternal.moveTraces).toHaveBeenCalledWith(gd, [-2, -1], [-3, -1]);
+            expect(plotApi.redraw).not.toHaveBeenCalled();
+            expect(plotApi.moveTraces).toHaveBeenCalledWith(gd, [-2, -1], [-3, -1]);
         });
 
         it('should work when newIndices is an integer', function() {
             Plotly.addTraces(gd, {'name': 'c'}, 0);
             expect(gd.data[2].name).toBeDefined();
-            expect(gd.data[2].uid).toBeDefined();
-            expect(PlotlyInternal.redraw).not.toHaveBeenCalled();
-            expect(PlotlyInternal.moveTraces).toHaveBeenCalledWith(gd, [-1], [0]);
+            expect(plotApi.redraw).not.toHaveBeenCalled();
+            expect(plotApi.moveTraces).toHaveBeenCalledWith(gd, [-1], [0]);
         });
 
         it('should work when adding an existing trace', function() {
@@ -1429,7 +1733,7 @@ describe('Test plot api', function() {
                     {'name': 'd'}
                 ]
             };
-            spyOn(PlotlyInternal, 'redraw');
+            spyOn(plotApi, 'redraw');
         });
 
         it('throw an error when index arrays are unequal', function() {
@@ -1497,8 +1801,7 @@ describe('Test plot api', function() {
 
             Plotly.moveTraces(gd, 0, 1);
             expect(gd.data).toEqual(expectedData);
-            expect(PlotlyInternal.redraw).toHaveBeenCalled();
-
+            expect(plotApi.redraw).toHaveBeenCalled();
         });
 
         it('handle unsorted currentIndices', function() {
@@ -1511,8 +1814,7 @@ describe('Test plot api', function() {
 
             Plotly.moveTraces(gd, [3, 1], [0, 3]);
             expect(gd.data).toEqual(expectedData);
-            expect(PlotlyInternal.redraw).toHaveBeenCalled();
-
+            expect(plotApi.redraw).toHaveBeenCalled();
         });
 
         it('work when newIndices are undefined.', function() {
@@ -1525,8 +1827,7 @@ describe('Test plot api', function() {
 
             Plotly.moveTraces(gd, [3, 0]);
             expect(gd.data).toEqual(expectedData);
-            expect(PlotlyInternal.redraw).toHaveBeenCalled();
-
+            expect(plotApi.redraw).toHaveBeenCalled();
         });
 
         it('accept negative indices.', function() {
@@ -1539,13 +1840,11 @@ describe('Test plot api', function() {
 
             Plotly.moveTraces(gd, 1, -2);
             expect(gd.data).toEqual(expectedData);
-            expect(PlotlyInternal.redraw).toHaveBeenCalled();
-
+            expect(plotApi.redraw).toHaveBeenCalled();
         });
     });
 
-
-    describe('Plotly.ExtendTraces', function() {
+    describe('Plotly.extendTraces / Plotly.prependTraces', function() {
         var gd;
 
         beforeEach(function() {
@@ -1564,12 +1863,11 @@ describe('Test plot api', function() {
                 };
             }
 
-            spyOn(PlotlyInternal, 'redraw');
+            spyOn(plotApi, 'redraw');
             spyOn(Plotly.Queue, 'add');
         });
 
         it('should throw an error when gd.data isn\'t an array.', function() {
-
             expect(function() {
                 Plotly.extendTraces({}, {x: [[1]]}, [0]);
             }).toThrow(new Error('gd.data must be an array'));
@@ -1577,11 +1875,9 @@ describe('Test plot api', function() {
             expect(function() {
                 Plotly.extendTraces({data: 'meow'}, {x: [[1]]}, [0]);
             }).toThrow(new Error('gd.data must be an array'));
-
         });
 
         it('should throw an error when update is not an object', function() {
-
             expect(function() {
                 Plotly.extendTraces(gd, undefined, [0], 8);
             }).toThrow(new Error('update must be a key:value object'));
@@ -1589,36 +1885,27 @@ describe('Test plot api', function() {
             expect(function() {
                 Plotly.extendTraces(gd, null, [0]);
             }).toThrow(new Error('update must be a key:value object'));
-
         });
 
-
         it('should throw an error when indices are omitted', function() {
-
             expect(function() {
                 Plotly.extendTraces(gd, {x: [[1]]});
             }).toThrow(new Error('indices must be an integer or array of integers'));
-
         });
 
         it('should throw an error when a current index is out of bounds', function() {
-
             expect(function() {
                 Plotly.extendTraces(gd, {x: [[1]]}, [-gd.data.length - 1]);
             }).toThrow(new Error('indices must be valid indices for gd.data.'));
-
         });
 
         it('should not throw an error when negative index wraps to positive', function() {
-
             expect(function() {
                 Plotly.extendTraces(gd, {x: [[1]]}, [-1]);
             }).not.toThrow();
-
         });
 
         it('should throw an error when number of Indices does not match Update arrays', function() {
-
             expect(function() {
                 Plotly.extendTraces(gd, {x: [[1, 2], [2, 3]] }, [0]);
             }).toThrow(new Error('attribute x must be an array of length equal to indices array length'));
@@ -1626,11 +1913,9 @@ describe('Test plot api', function() {
             expect(function() {
                 Plotly.extendTraces(gd, {x: [[1]]}, [0, 1]);
             }).toThrow(new Error('attribute x must be an array of length equal to indices array length'));
-
         });
 
         it('should throw an error when maxPoints is an Object but does not match Update', function() {
-
             expect(function() {
                 Plotly.extendTraces(gd, {x: [[1]]}, [0], {y: [1]});
             }).toThrow(new Error('when maxPoints is set as a key:value object it must contain a 1:1 ' +
@@ -1640,11 +1925,9 @@ describe('Test plot api', function() {
                 Plotly.extendTraces(gd, {x: [[1]]}, [0], {x: [1, 2]});
             }).toThrow(new Error('when maxPoints is set as a key:value object it must contain a 1:1 ' +
                                  'corrispondence with the keys and number of traces in the update object'));
-
         });
 
         it('should throw an error when update keys mismatch trace keys', function() {
-
             // lets update y on both traces, but only 1 trace has "y"
             gd.data[1].y = [1, 2, 3];
 
@@ -1653,11 +1936,9 @@ describe('Test plot api', function() {
                     y: [[3, 4], [4, 5]], 'marker.size': [[0, -1], [5, 6]]
                 }, [0, 1]);
             }).toThrow(new Error('cannot extend missing or non-array attribute: y'));
-
         });
 
         it('should extend traces with update keys', function() {
-
             Plotly.extendTraces(gd, {
                 x: [[3, 4], [4, 5]], 'marker.size': [[0, -1], [5, 6]]
             }, [0, 1]);
@@ -1667,7 +1948,7 @@ describe('Test plot api', function() {
                 {x: [1, 2, 3, 4, 5], marker: {size: [2, 3, 4, 5, 6]}}
             ]);
 
-            expect(PlotlyInternal.redraw).toHaveBeenCalled();
+            expect(plotApi.redraw).toHaveBeenCalled();
         });
 
         it('should extend and window traces with update keys', function() {
@@ -1710,7 +1991,6 @@ describe('Test plot api', function() {
         });
 
         it('should truncate arrays when maxPoints is zero', function() {
-
             Plotly.extendTraces(gd, {
                 x: [[3, 4], [4, 5]], 'marker.size': [[0, -1], [5, 6]]
             }, [0, 1], 0);
@@ -1720,7 +2000,7 @@ describe('Test plot api', function() {
                 {x: [], marker: {size: []}}
             ]);
 
-            expect(PlotlyInternal.redraw).toHaveBeenCalled();
+            expect(plotApi.redraw).toHaveBeenCalled();
         });
 
         it('prepend is the inverse of extend - no maxPoints', function() {
@@ -1740,7 +2020,6 @@ describe('Test plot api', function() {
             expect(gd.data).toEqual(cachedData);
         });
 
-
         it('extend is the inverse of prepend - no maxPoints', function() {
             var cachedData = Lib.extendDeep([], gd.data);
 
@@ -1757,7 +2036,6 @@ describe('Test plot api', function() {
 
             expect(gd.data).toEqual(cachedData);
         });
-
 
         it('prepend is the inverse of extend - with maxPoints', function() {
             var maxPoints = 3;
@@ -1776,10 +2054,176 @@ describe('Test plot api', function() {
 
             expect(gd.data).toEqual(cachedData);
         });
+
+        it('should throw when trying to extend a plain array with a typed array', function() {
+            gd.data = [{
+                x: new Float32Array([1, 2, 3]),
+                marker: {size: new Float32Array([20, 30, 10])}
+            }];
+
+            expect(function() {
+                Plotly.extendTraces(gd, {x: [[1]]}, [0]);
+            }).toThrow(new Error('cannot extend array with an array of a different type: x'));
+        });
+
+        it('should throw when trying to extend a typed array with a plain array', function() {
+            gd.data = [{
+                x: [1, 2, 3],
+                marker: {size: [20, 30, 10]}
+            }];
+
+            expect(function() {
+                Plotly.extendTraces(gd, {x: [new Float32Array([1])]}, [0]);
+            }).toThrow(new Error('cannot extend array with an array of a different type: x'));
+        });
+
+        it('should extend traces with update keys (typed array case)', function() {
+            gd.data = [{
+                x: new Float32Array([1, 2, 3]),
+                marker: {size: new Float32Array([20, 30, 10])}
+            }];
+
+            Plotly.extendTraces(gd, {
+                x: [new Float32Array([4, 5])],
+                'marker.size': [new Float32Array([40, 30])]
+            }, [0]);
+
+            expect(gd.data[0].x).toEqual(new Float32Array([1, 2, 3, 4, 5]));
+            expect(gd.data[0].marker.size).toEqual(new Float32Array([20, 30, 10, 40, 30]));
+        });
+
+        describe('should extend/prepend and window traces with update keys linked', function() {
+            function _base(method, args, expectations) {
+                gd.data = [{
+                    x: [1, 2, 3]
+                }, {
+                    x: new Float32Array([1, 2, 3])
+                }];
+
+                Plotly[method](gd, {
+                    x: [args.newPts, new Float32Array(args.newPts)]
+                }, [0, 1], args.maxp);
+
+                expect(plotApi.redraw).toHaveBeenCalled();
+                expect(Plotly.Queue.add).toHaveBeenCalled();
+
+                expect(gd.data[0].x).toEqual(expectations.newArray);
+                expect(gd.data[1].x).toEqual(new Float32Array(expectations.newArray));
+
+                var cont = Plotly.Queue.add.calls.first().args[2][1].x;
+                expect(cont[0]).toEqual(expectations.remainder);
+                expect(cont[1]).toEqual(new Float32Array(expectations.remainder));
+            }
+
+            function _extendTraces(args, expectations) {
+                return _base('extendTraces', args, expectations);
+            }
+
+            function _prependTraces(args, expectations) {
+                return _base('prependTraces', args, expectations);
+            }
+
+            it('- extend no maxp', function() {
+                _extendTraces({
+                    newPts: [4, 5]
+                }, {
+                    newArray: [1, 2, 3, 4, 5],
+                    remainder: []
+                });
+            });
+
+            it('- extend maxp === insert.length', function() {
+                _extendTraces({
+                    newPts: [4, 5],
+                    maxp: 2
+                }, {
+                    newArray: [4, 5],
+                    remainder: [1, 2, 3]
+                });
+            });
+
+            it('- extend maxp < insert.length', function() {
+                _extendTraces({
+                    newPts: [4, 5],
+                    maxp: 1
+                }, {
+                    newArray: [5],
+                    remainder: [1, 2, 3, 4]
+                });
+            });
+
+            it('- extend maxp > insert.length', function() {
+                _extendTraces({
+                    newPts: [4, 5],
+                    maxp: 4
+                }, {
+                    newArray: [2, 3, 4, 5],
+                    remainder: [1]
+                });
+            });
+
+            it('- extend maxp === 0', function() {
+                _extendTraces({
+                    newPts: [4, 5],
+                    maxp: 0
+                }, {
+                    newArray: [],
+                    remainder: [1, 2, 3, 4, 5]
+                });
+            });
+
+            it('- prepend no maxp', function() {
+                _prependTraces({
+                    newPts: [-1, 0]
+                }, {
+                    newArray: [-1, 0, 1, 2, 3],
+                    remainder: []
+                });
+            });
+
+            it('- prepend maxp === insert.length', function() {
+                _prependTraces({
+                    newPts: [-1, 0],
+                    maxp: 2
+                }, {
+                    newArray: [-1, 0],
+                    remainder: [1, 2, 3]
+                });
+            });
+
+            it('- prepend maxp < insert.length', function() {
+                _prependTraces({
+                    newPts: [-1, 0],
+                    maxp: 1
+                }, {
+                    newArray: [-1],
+                    remainder: [0, 1, 2, 3]
+                });
+            });
+
+            it('- prepend maxp > insert.length', function() {
+                _prependTraces({
+                    newPts: [-1, 0],
+                    maxp: 4
+                }, {
+                    newArray: [-1, 0, 1, 2],
+                    remainder: [3]
+                });
+            });
+
+            it('- prepend maxp === 0', function() {
+                _prependTraces({
+                    newPts: [-1, 0],
+                    maxp: 0
+                }, {
+                    newArray: [],
+                    remainder: [-1, 0, 1, 2, 3]
+                });
+            });
+        });
     });
 
     describe('Plotly.purge', function() {
-
         afterEach(destroyGraphDiv);
 
         it('should return the graph div in its original state', function(done) {
@@ -1793,20 +2237,19 @@ describe('Test plot api', function() {
 
                 expect(Object.keys(gd)).toEqual(initialKeys);
                 expect(gd.innerHTML).toEqual(intialHTML);
-
-                done();
-            });
+            })
+            .catch(failTest)
+            .then(done);
         });
     });
 
     describe('Plotly.redraw', function() {
-
         afterEach(destroyGraphDiv);
 
         it('', function(done) {
-            var gd = createGraphDiv(),
-                initialData = [],
-                layout = { title: 'Redraw' };
+            var gd = createGraphDiv();
+            var initialData = [];
+            var layout = { title: 'Redraw' };
 
             Plotly.newPlot(gd, initialData, layout);
 
@@ -1829,9 +2272,11 @@ describe('Test plot api', function() {
             var newData = [trace1, trace2, trace3];
             gd.data = newData;
 
-            Plotly.redraw(gd).then(function() {
+            Plotly.redraw(gd)
+            .then(function() {
                 expect(d3.selectAll('g.trace.scatter').size()).toEqual(3);
             })
+            .catch(failTest)
             .then(done);
         });
     });
@@ -1844,6 +2289,52 @@ describe('Test plot api', function() {
         });
 
         afterEach(destroyGraphDiv);
+
+        it('should rename \'scl\' to \'colorscale\' when colorscale is not defined', function() {
+            var data = [{
+                type: 'heatmap',
+                scl: 'Blues'
+            }];
+
+            Plotly.plot(gd, data);
+            expect(gd.data[0].colorscale).toBe('Blues');
+            expect(gd.data[0].scl).toBe(undefined);
+        });
+
+        it('should not delete rename \'scl\' to \'colorscale\' when colorscale is defined ', function() {
+            var data = [{
+                type: 'heatmap',
+                colorscale: 'Greens',
+                scl: 'Reds'
+            }];
+
+            Plotly.plot(gd, data);
+            expect(gd.data[0].colorscale).toBe('Greens');
+            expect(gd.data[0].scl).not.toBe(undefined);
+        });
+
+        it('should rename \'reversescl\' to \'reversescale\' when colorscale is not defined', function() {
+            var data = [{
+                type: 'heatmap',
+                reversescl: true
+            }];
+
+            Plotly.plot(gd, data);
+            expect(gd.data[0].reversescale).toBe(true);
+            expect(gd.data[0].reversescl).toBe(undefined);
+        });
+
+        it('should not delete & rename \'reversescl\' to \'reversescale\' when colorscale is defined', function() {
+            var data = [{
+                type: 'heatmap',
+                reversescale: true,
+                reversescl: false
+            }];
+
+            Plotly.plot(gd, data);
+            expect(gd.data[0].reversescale).toBe(true);
+            expect(gd.data[0].reversescl).not.toBe(undefined);
+        });
 
         it('should rename \'YIGnBu\' colorscales YlGnBu (2dMap case)', function() {
             var data = [{
@@ -1969,8 +2460,8 @@ describe('Test plot api', function() {
 
             Plotly.plot(gd, data);
 
-            var trace0 = gd.data[0],
-                trace1 = gd.data[1];
+            var trace0 = gd.data[0];
+            var trace1 = gd.data[1];
 
             expect(trace0.transforms.length).toEqual(2);
             expect(trace0.transforms[0].filtersrc).toBeUndefined();
@@ -1999,8 +2490,8 @@ describe('Test plot api', function() {
 
             Plotly.plot(gd, data);
 
-            var trace0 = gd.data[0],
-                trace1 = gd.data[1];
+            var trace0 = gd.data[0];
+            var trace1 = gd.data[1];
 
             expect(trace0.transforms.length).toEqual(2);
             expect(trace0.transforms[0].calendar).toBeUndefined();
@@ -2037,7 +2528,90 @@ describe('Test plot api', function() {
             expect(gd.layout.shapes[1]).toEqual(null);
             expect(gd.layout.shapes[2].xref).toEqual('x3');
             expect(gd.layout.shapes[2].yref).toEqual('y');
+        });
 
+        it('removes direction names and showlegend from finance traces', function() {
+            var data = [{
+                type: 'ohlc', open: [1], high: [3], low: [0], close: [2],
+                increasing: {
+                    showlegend: true,
+                    name: 'Yeti goes up'
+                },
+                decreasing: {
+                    showlegend: 'legendonly',
+                    name: 'Yeti goes down'
+                },
+                name: 'Snowman'
+            }, {
+                type: 'candlestick', open: [1], high: [3], low: [0], close: [2],
+                increasing: {
+                    name: 'Bigfoot'
+                },
+                decreasing: {
+                    showlegend: false,
+                    name: 'Biggerfoot'
+                },
+                name: 'Nobody'
+            }, {
+                type: 'ohlc', open: [1], high: [3], low: [0], close: [2],
+                increasing: {
+                    name: 'Batman'
+                },
+                decreasing: {
+                    showlegend: true
+                },
+                name: 'Robin'
+            }, {
+                type: 'candlestick', open: [1], high: [3], low: [0], close: [2],
+                increasing: {
+                    showlegend: false,
+                },
+                decreasing: {
+                    name: 'Fred'
+                }
+            }, {
+                type: 'ohlc', open: [1], high: [3], low: [0], close: [2],
+                increasing: {
+                    showlegend: false,
+                    name: 'Gruyere heating up'
+                },
+                decreasing: {
+                    showlegend: false,
+                    name: 'Gruyere cooling off'
+                },
+                name: 'Emmenthaler'
+            }];
+
+            Plotly.plot(gd, data);
+
+            // Even if both showlegends are false, leave trace.showlegend out
+            // My rationale for this is that legends are sufficiently different
+            // now that it's worthwhile resetting their existence to default
+            gd.data.forEach(function(trace) {
+                expect(trace.increasing.name).toBeUndefined();
+                expect(trace.increasing.showlegend).toBeUndefined();
+                expect(trace.decreasing.name).toBeUndefined();
+                expect(trace.decreasing.showlegend).toBeUndefined();
+            });
+
+            // Both directions have names: ignore trace.name, as it
+            // had no effect on the output previously
+            // Ideally 'Yeti goes' would be smart enough to truncate
+            // at 'Yeti' but I don't see how to do that...
+            expect(gd.data[0].name).toBe('Yeti goes');
+            // One direction has empty or hidden name so use the other
+            // Note that even '' in both names would render trace.name impact-less
+            expect(gd.data[1].name).toBe('Bigfoot');
+
+            // One direction has a name but trace.name is there too:
+            // just use trace.name
+            expect(gd.data[2].name).toBe('Robin');
+
+            // No trace.name, only one direction name: use the direction name
+            expect(gd.data[3].name).toBe('Fred');
+
+            // both names exist but hidden from the legend: still look for common prefix
+            expect(gd.data[4].name).toBe('Gruyere');
         });
     });
 
@@ -2051,24 +2625,55 @@ describe('Test plot api', function() {
         afterEach(destroyGraphDiv);
 
         it('should respect layout.width and layout.height', function(done) {
-
             // See issue https://github.com/plotly/plotly.js/issues/537
             var data = [{
                 x: [1, 2],
                 y: [1, 2]
             }];
+            var height = 50;
 
             Plotly.plot(gd, data).then(function() {
-                var height = 50;
+                return Plotly.newPlot(gd, data, { height: height });
+            })
+            .then(function() {
+                var fullLayout = gd._fullLayout;
+                var svg = document.getElementsByClassName('main-svg')[0];
 
-                Plotly.newPlot(gd, data, { height: height }).then(function() {
-                    var fullLayout = gd._fullLayout,
-                        svg = document.getElementsByClassName('main-svg')[0];
+                expect(fullLayout.height).toBe(height);
+                expect(+svg.getAttribute('height')).toBe(height);
+            })
+            .catch(failTest)
+            .then(done);
+        });
 
-                    expect(fullLayout.height).toBe(height);
-                    expect(+svg.getAttribute('height')).toBe(height);
-                }).then(done);
-            });
+        it('should only have one modebar-container', function(done) {
+            var data = [{y: [1, 2]}];
+
+            function _assert(msg) {
+                return function() {
+                    var modebars = document.getElementsByClassName('modebar-container');
+                    expect(modebars.length).toBe(1, msg + ' # of modebar container');
+                    var groups = document.getElementsByClassName('modebar-group');
+                    expect(groups.length).toBe(5, msg + ' # of modebar button groups');
+                };
+            }
+
+            Plotly.plot(gd, data)
+            .then(_assert('base'))
+            .then(function() { return Plotly.newPlot(gd, data); })
+            .then(_assert('after newPlot()'))
+            .then(function() {
+                // funky combinations of update flags found in
+                // https://github.com/plotly/plotly.js/issues/3824
+                return Plotly.update(gd, {
+                    visible: false
+                }, {
+                    annotations: [{text: 'a'}]
+                });
+            })
+            .then(_assert('after update()'))
+            .catch(failTest)
+            .then(done);
         });
     });
 
@@ -2082,25 +2687,29 @@ describe('Test plot api', function() {
         });
 
         beforeEach(function(done) {
+            Object.keys(subroutines).forEach(function(k) {
+                subroutines[k].calls.reset();
+            });
+
             gd = createGraphDiv();
             Plotly.plot(gd, [{ y: [2, 1, 2] }]).then(function() {
                 data = gd.data;
                 layout = gd.layout;
                 calcdata = gd.calcdata;
-                done();
-            });
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         afterEach(destroyGraphDiv);
 
         it('call doTraceStyle on trace style updates', function(done) {
-            expect(subroutines.doTraceStyle).not.toHaveBeenCalled();
-
             Plotly.update(gd, { 'marker.color': 'blue' }).then(function() {
                 expect(subroutines.doTraceStyle).toHaveBeenCalledTimes(1);
                 expect(calcdata).toBe(gd.calcdata);
-                done();
-            });
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('clear calcdata on data updates', function(done) {
@@ -2108,8 +2717,9 @@ describe('Test plot api', function() {
                 expect(data).toBe(gd.data);
                 expect(layout).toBe(gd.layout);
                 expect(calcdata).not.toBe(gd.calcdata);
-                done();
-            });
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('clear calcdata on data + axis updates w/o extending current gd.data', function(done) {
@@ -2125,25 +2735,24 @@ describe('Test plot api', function() {
                 expect(data).toBe(gd.data);
                 expect(layout).toBe(gd.layout);
                 expect(calcdata).not.toBe(gd.calcdata);
-
                 expect(gd.data.length).toEqual(1);
-
-                done();
-            });
+                expect(subroutines.layoutReplot).toHaveBeenCalledTimes(1);
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('call doLegend on legend updates', function(done) {
-            expect(subroutines.doLegend).not.toHaveBeenCalled();
-
             Plotly.update(gd, {}, { 'showlegend': true }).then(function() {
                 expect(subroutines.doLegend).toHaveBeenCalledTimes(1);
                 expect(calcdata).toBe(gd.calcdata);
-                done();
-            });
+            })
+            .catch(failTest)
+            .then(done);
         });
 
-        it('call layoutReplot when adding update menu', function(done) {
-            expect(subroutines.layoutReplot).not.toHaveBeenCalled();
+        it('call array manager when adding update menu', function(done) {
+            spyOn(manageArrays, 'applyContainerArrayChanges').and.callThrough();
 
             var layoutUpdate = {
                 updatemenus: [{
@@ -2155,20 +2764,26 @@ describe('Test plot api', function() {
             };
 
             Plotly.update(gd, {}, layoutUpdate).then(function() {
-                expect(subroutines.doLegend).toHaveBeenCalledTimes(1);
+                expect(manageArrays.applyContainerArrayChanges).toHaveBeenCalledTimes(1);
+                expect(subroutines.layoutReplot).toHaveBeenCalledTimes(0);
                 expect(calcdata).toBe(gd.calcdata);
-                done();
-            });
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('call doModeBar when updating \'dragmode\'', function(done) {
-            expect(subroutines.doModeBar).not.toHaveBeenCalled();
-
             Plotly.update(gd, {}, { 'dragmode': 'pan' }).then(function() {
                 expect(subroutines.doModeBar).toHaveBeenCalledTimes(1);
                 expect(calcdata).toBe(gd.calcdata);
-                done();
-            });
+            })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('ignores invalid trace indices', function() {
+            // Call update on an invalid trace indice
+            Plotly.update(gd, {'type': 'scatter', 'marker.color': 'red'}, {}, [1]);
         });
     });
 });

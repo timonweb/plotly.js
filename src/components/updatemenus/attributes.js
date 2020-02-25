@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -13,10 +13,14 @@ var colorAttrs = require('../color/attributes');
 var extendFlat = require('../../lib/extend').extendFlat;
 var overrideAll = require('../../plot_api/edit_types').overrideAll;
 var padAttrs = require('../../plots/pad_attributes');
+var templatedArray = require('../../plot_api/plot_template').templatedArray;
 
-var buttonsAttrs = {
-    _isLinkedToArray: 'button',
-
+var buttonsAttrs = templatedArray('button', {
+    visible: {
+        valType: 'boolean',
+        role: 'info',
+        description: 'Determines whether or not this button is visible.'
+    },
     method: {
         valType: 'enumerated',
         values: ['restyle', 'relayout', 'animate', 'update', 'skip'],
@@ -44,6 +48,22 @@ var buttonsAttrs = {
             'method set in `method` on click.'
         ].join(' ')
     },
+    args2: {
+        valType: 'info_array',
+        role: 'info',
+        freeLength: true,
+        items: [
+            {valType: 'any'},
+            {valType: 'any'},
+            {valType: 'any'}
+        ],
+        description: [
+            'Sets a 2nd set of `args`,',
+            'these arguments values are passed to the Plotly',
+            'method set in `method` when clicking this button while in the active state.',
+            'Use this to create toggle buttons.'
+        ].join(' ')
+    },
     label: {
         valType: 'string',
         role: 'info',
@@ -62,10 +82,9 @@ var buttonsAttrs = {
             'specification of `method` and `args`.'
         ].join(' ')
     }
-};
+});
 
-module.exports = overrideAll({
-    _isLinkedToArray: 'updatemenu',
+module.exports = overrideAll(templatedArray('updatemenu', {
     _arrayAttrRegexps: [/^updatemenus\[(0|[1-9][0-9]+)\]\.buttons/],
 
     visible: {
@@ -159,7 +178,7 @@ module.exports = overrideAll({
         ].join(' ')
     },
 
-    pad: extendFlat({}, padAttrs, {
+    pad: extendFlat(padAttrs({editType: 'arraydraw'}), {
         description: 'Sets the padding around the buttons or dropdown menu.'
     }),
 
@@ -186,4 +205,4 @@ module.exports = overrideAll({
         editType: 'arraydraw',
         description: 'Sets the width (in px) of the border enclosing the update menu.'
     }
-}, 'arraydraw', 'from-root');
+}), 'arraydraw', 'from-root');

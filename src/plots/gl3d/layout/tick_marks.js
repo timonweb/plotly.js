@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -15,7 +15,6 @@ module.exports = computeTickMarks;
 
 var Axes = require('../../cartesian/axes');
 var Lib = require('../../../lib');
-var convertHTMLToUnicode = require('../../../lib/html2unicode');
 
 var AXES_NAMES = ['xaxis', 'yaxis', 'zaxis'];
 
@@ -47,9 +46,11 @@ function computeTickMarks(scene) {
         axes._length = (glRange[i].hi - glRange[i].lo) *
             glRange[i].pixelsPerDataUnit / scene.dataScale[i];
 
-        if(Math.abs(axes._length) === Infinity) {
+        if(Math.abs(axes._length) === Infinity ||
+           isNaN(axes._length)) {
             ticks[i] = [];
         } else {
+            axes._input_range = axes.range.slice();
             axes.range[0] = (glRange[i].lo) / scene.dataScale[i];
             axes.range[1] = (glRange[i].hi) / scene.dataScale[i];
             axes._m = 1.0 / (scene.dataScale[i] * glRange[i].pixelsPerDataUnit);
@@ -71,7 +72,11 @@ function computeTickMarks(scene) {
             var dataTicks = Axes.calcTicks(axes);
             for(var j = 0; j < dataTicks.length; ++j) {
                 dataTicks[j].x = dataTicks[j].x * scene.dataScale[i];
-                dataTicks[j].text = convertHTMLToUnicode(dataTicks[j].text);
+
+                if(axes.type === 'date') {
+                    dataTicks[j].text =
+                    dataTicks[j].text.replace(/\<br\>/g, ' ');
+                }
             }
             ticks[i] = dataTicks;
 

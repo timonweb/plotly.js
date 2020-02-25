@@ -24,19 +24,22 @@ We use the following [labels](https://github.com/plotly/plotly.js/labels) to tra
 | `type: community` | issue left open for community input and pull requests |
 | `type: duplicate` | *self-explanatory* |
 | `type: wontfix` | *self-explanatory* |
-| `status: discussion needed` | Issue or PR that required discussion among maintaners before moving forward |
-| `status: in progress` | PRs that required some intial feedback but not ready to merge |
+| `status: discussion needed` | Issue or PR that required discussion among maintainers before moving forward |
+| `status: in progress` | PRs that required some initial feedback but not ready to merge |
 | `status: reviewable` | PRs that are completed from the author's perspective |
 | `status: on hold` | PRs that are put on hold |
 
 ## Development
 
-#### Perequisites
+#### Prerequisites
 
 - git
-- [node.js](https://nodejs.org/en/). We recommend using node.js v6.x or v4.x (both LTS).
+- [node.js](https://nodejs.org/en/). We recommend using node.js v12.x (LTS).
   Upgrading and managing node versions can be easily done using
   [`nvm`](https://github.com/creationix/nvm) or its Windows alternatives.
+- [`npm`](https://www.npmjs.com/) v6.x and up to ensure that the
+  [`package-lock.json`](https://docs.npmjs.com/files/package-lock.json) file is
+  used and updated correctly.
 
 #### Step 1: Clone the plotly.js repo and install its dependencies
 
@@ -172,6 +175,27 @@ which shows the baseline image, the generated image, the diff and the json mocks
 
 To view the results of a run on CircleCI, download the `build/test_images/` and `build/test_images_diff/` artifacts into your local repo and then run `npm run start-image_viewer`.
 
+### Writing interaction tests
+Keep in mind that the interaction coordinates are relative to the top-left corner of the plot, including the margins. To produce a reliable interaction test, 
+it may be necessary to fix the width, height, margins, X axis range and Y axis range of the plot. For example:
+
+```
+Plotly.newPlot(gd, [{
+    x: [1, 1, 1, 2, 2, 2, 3, 3, 3],
+    y: [1, 2, 3, 1, 2, 3, 1, 2, 3],
+    mode: 'markers'
+}], {
+    width: 400, height: 400,
+    margin: {l: 100, r: 100, t: 100, b: 100},
+    xaxis: {range: [0, 4]},
+    yaxis: {range: [0, 4]}
+});
+```
+
+This will produce the following plot, and say you want to simulate a selection path of (175, 175) to (225, 225):
+
+<img src="https://user-images.githubusercontent.com/31989842/38890553-0bc6190c-4282-11e8-8efc-077bf05ca565.png">
+
 
 ## Repo organization
 
@@ -182,7 +206,7 @@ To view the results of a run on CircleCI, download the `build/test_images/` and 
 - All tasks can be run using [`npm run-script`](https://docs.npmjs.com/cli/run-script)
 - Tests are `test/`, they are partitioned into `image` and `jasmine` tests
 - Test dashboard and image viewer code is in `devtools/`
-- Non-distributed, built files are in `build/` (most files in here are git-ignored, the css and font built files are exceptions)
+- Built files are in `build/` (most files in here are git-ignored, the css and font built files are exceptions)
 
 
 ## Coding style

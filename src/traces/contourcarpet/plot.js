@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -18,119 +18,131 @@ var makeCrossings = require('../contour/make_crossings');
 var findAllPaths = require('../contour/find_all_paths');
 var contourPlot = require('../contour/plot');
 var constants = require('../contour/constants');
-var convertToConstraints = require('./convert_to_constraints');
-var joinAllPaths = require('./join_all_paths');
-var emptyPathinfo = require('./empty_pathinfo');
-var mapPathinfo = require('./map_pathinfo');
+var convertToConstraints = require('../contour/convert_to_constraints');
+var emptyPathinfo = require('../contour/empty_pathinfo');
+var closeBoundaries = require('../contour/close_boundaries');
 var lookupCarpet = require('../carpet/lookup_carpetid');
-var closeBoundaries = require('./close_boundaries');
+var axisAlignedLine = require('../carpet/axis_aligned_line');
 
-
-module.exports = function plot(gd, plotinfo, cdcontours) {
-    for(var i = 0; i < cdcontours.length; i++) {
-        plotOne(gd, plotinfo, cdcontours[i]);
-    }
-};
-
-function plotOne(gd, plotinfo, cd) {
-    var trace = cd[0].trace;
-
-    var carpet = trace.carpetTrace = lookupCarpet(gd, trace);
-    var carpetcd = gd.calcdata[carpet.index][0];
-
-    if(!carpet.visible || carpet.visible === 'legendonly') return;
-
-    var a = cd[0].a;
-    var b = cd[0].b;
-    var contours = trace.contours;
-    var uid = trace.uid;
+module.exports = function plot(gd, plotinfo, cdcontours, contourcarpetLayer) {
     var xa = plotinfo.xaxis;
     var ya = plotinfo.yaxis;
-    var fullLayout = gd._fullLayout;
-    var id = 'contour' + uid;
-    var pathinfo = emptyPathinfo(contours, plotinfo, cd[0]);
-    var isConstraint = trace.contours.type === 'constraint';
 
-    // Map [a, b] (data) --> [i, j] (pixels)
-    function ab2p(ab) {
-        var pt = carpet.ab2xy(ab[0], ab[1], true);
-        return [xa.c2p(pt[0]), ya.c2p(pt[1])];
+    Lib.makeTraceGroups(contourcarpetLayer, cdcontours, 'contour').each(function(cd) {
+        var plotGroup = d3.select(this);
+        var cd0 = cd[0];
+        var trace = cd0.trace;
+
+        var carpet = trace._carpetTrace = lookupCarpet(gd, trace);
+        var carpetcd = gd.calcdata[carpet.index][0];
+
+        if(!carpet.visible || carpet.visible === 'legendonly') return;
+
+        var a = cd0.a;
+        var b = cd0.b;
+        var contours = trace.contours;
+        var pathinfo = emptyPathinfo(contours, plotinfo, cd0);
+        var isConstraint = contours.type === 'constraint';
+        var operation = contours._operation;
+        var coloring = isConstraint ? (operation === '=' ? 'lines' : 'fill') : contours.coloring;
+
+        // Map [a, b] (data) --> [i, j] (pixels)
+        function ab2p(ab) {
+            var pt = carpet.ab2xy(ab[0], ab[1], true);
+            return [xa.c2p(pt[0]), ya.c2p(pt[1])];
+        }
+
+        // Define the perimeter in a/b coordinates:
+        var perimeter = [
+            [a[0], b[b.length - 1]],
+            [a[a.length - 1], b[b.length - 1]],
+            [a[a.length - 1], b[0]],
+            [a[0], b[0]]
+        ];
+
+        // Extract the contour levels:
+        makeCrossings(pathinfo);
+        var atol = (a[a.length - 1] - a[0]) * 1e-8;
+        var btol = (b[b.length - 1] - b[0]) * 1e-8;
+        findAllPaths(pathinfo, atol, btol);
+
+        // Constraints might need to be draw inverted, which is not something contours
+        // handle by default since they're assumed fully opaque so that they can be
+        // drawn overlapping. This function flips the paths as necessary so that they're
+        // drawn correctly.
+        //
+        // TODO: Perhaps this should be generalized and *all* paths should be drawn as
+        // closed regions so that translucent contour levels would be valid.
+        // See: https://github.com/plotly/plotly.js/issues/1356
+        var fillPathinfo = pathinfo;
+        if(contours.type === 'constraint') {
+            fillPathinfo = convertToConstraints(pathinfo, operation);
+        }
+
+        // Map the paths in a/b coordinates to pixel coordinates:
+        mapPathinfo(pathinfo, ab2p);
+
+        // draw everything
+
+        // Compute the boundary path
+        var seg, xp, yp, i;
+        var segs = [];
+        for(i = carpetcd.clipsegments.length - 1; i >= 0; i--) {
+            seg = carpetcd.clipsegments[i];
+            xp = map1dArray([], seg.x, xa.c2p);
+            yp = map1dArray([], seg.y, ya.c2p);
+            xp.reverse();
+            yp.reverse();
+            segs.push(makepath(xp, yp, seg.bicubic));
+        }
+
+        var boundaryPath = 'M' + segs.join('L') + 'Z';
+
+        // Draw the baseline background fill that fills in the space behind any other
+        // contour levels:
+        makeBackground(plotGroup, carpetcd.clipsegments, xa, ya, isConstraint, coloring);
+
+        // Draw the specific contour fills. As a simplification, they're assumed to be
+        // fully opaque so that it's easy to draw them simply overlapping. The alternative
+        // would be to flip adjacent paths and draw closed paths for each level instead.
+        makeFills(trace, plotGroup, xa, ya, fillPathinfo, perimeter, ab2p, carpet, carpetcd, coloring, boundaryPath);
+
+        // Draw contour lines:
+        makeLinesAndLabels(plotGroup, pathinfo, gd, cd0, contours, plotinfo, carpet);
+
+        // Clip the boundary of the plot
+        Drawing.setClipUrl(plotGroup, carpet._clipPathId, gd);
+    });
+};
+
+function mapPathinfo(pathinfo, map) {
+    var i, j, k, pi, pedgepaths, ppaths, pedgepath, ppath, path;
+
+    for(i = 0; i < pathinfo.length; i++) {
+        pi = pathinfo[i];
+        pedgepaths = pi.pedgepaths = [];
+        ppaths = pi.ppaths = [];
+        for(j = 0; j < pi.edgepaths.length; j++) {
+            path = pi.edgepaths[j];
+            pedgepath = [];
+            for(k = 0; k < path.length; k++) {
+                pedgepath[k] = map(path[k]);
+            }
+            pedgepaths.push(pedgepath);
+        }
+        for(j = 0; j < pi.paths.length; j++) {
+            path = pi.paths[j];
+            ppath = [];
+            for(k = 0; k < path.length; k++) {
+                ppath[k] = map(path[k]);
+            }
+            ppaths.push(ppath);
+        }
     }
-
-    if(trace.visible !== true) {
-        fullLayout._infolayer.selectAll('.cb' + uid).remove();
-        return;
-    }
-
-    // Define the perimeter in a/b coordinates:
-    var perimeter = [
-        [a[0], b[b.length - 1]],
-        [a[a.length - 1], b[b.length - 1]],
-        [a[a.length - 1], b[0]],
-        [a[0], b[0]]
-    ];
-
-    // Extract the contour levels:
-    makeCrossings(pathinfo);
-    var atol = (a[a.length - 1] - a[0]) * 1e-8;
-    var btol = (b[b.length - 1] - b[0]) * 1e-8;
-    findAllPaths(pathinfo, atol, btol);
-
-    // Constraints might need to be draw inverted, which is not something contours
-    // handle by default since they're assumed fully opaque so that they can be
-    // drawn overlapping. This function flips the paths as necessary so that they're
-    // drawn correctly.
-    //
-    // TODO: Perhaps this should be generalized and *all* paths should be drawn as
-    // closed regions so that translucent contour levels would be valid.
-    // See: https://github.com/plotly/plotly.js/issues/1356
-    if(trace.contours.type === 'constraint') {
-        convertToConstraints(pathinfo, trace.contours.operation);
-        closeBoundaries(pathinfo, trace.contours.operation, perimeter, trace);
-    }
-
-    // Map the paths in a/b coordinates to pixel coordinates:
-    mapPathinfo(pathinfo, ab2p);
-
-    // draw everything
-    var plotGroup = contourPlot.makeContourGroup(plotinfo, cd, id);
-
-    // Compute the boundary path
-    var seg, xp, yp, i;
-    var segs = [];
-    for(i = carpetcd.clipsegments.length - 1; i >= 0; i--) {
-        seg = carpetcd.clipsegments[i];
-        xp = map1dArray([], seg.x, xa.c2p);
-        yp = map1dArray([], seg.y, ya.c2p);
-        xp.reverse();
-        yp.reverse();
-        segs.push(makepath(xp, yp, seg.bicubic));
-    }
-
-    var boundaryPath = 'M' + segs.join('L') + 'Z';
-
-    // Draw the baseline background fill that fills in the space behind any other
-    // contour levels:
-    makeBackground(plotGroup, carpetcd.clipsegments, xa, ya, isConstraint, contours.coloring);
-
-    // Draw the specific contour fills. As a simplification, they're assumed to be
-    // fully opaque so that it's easy to draw them simply overlapping. The alternative
-    // would be to flip adjacent paths and draw closed paths for each level instead.
-    makeFills(trace, plotGroup, xa, ya, pathinfo, perimeter, ab2p, carpet, carpetcd, contours.coloring, boundaryPath);
-
-    // Draw contour lines:
-    makeLinesAndLabels(plotGroup, pathinfo, gd, cd[0], contours, plotinfo, carpet);
-
-    // Clip the boundary of the plot
-    Drawing.setClipUrl(plotGroup, carpet._clipPathId);
 }
 
 function makeLinesAndLabels(plotgroup, pathinfo, gd, cd0, contours, plotinfo, carpet) {
-    var lineContainer = plotgroup.selectAll('g.contourlines').data([0]);
-
-    lineContainer.enter().append('g')
-        .classed('contourlines', true);
-
+    var lineContainer = Lib.ensureSingle(plotgroup, 'g', 'contourlines');
     var showLines = contours.showlines !== false;
     var showLabels = contours.showlabels;
     var clipLinesForLabels = showLines && showLabels;
@@ -141,8 +153,7 @@ function makeLinesAndLabels(plotgroup, pathinfo, gd, cd0, contours, plotinfo, ca
     // In this case we'll remove the lines after making the labels.
     var linegroup = contourPlot.createLines(lineContainer, showLines || showLabels, pathinfo);
 
-    var lineClip = contourPlot.createLineClip(lineContainer, clipLinesForLabels,
-        gd._fullLayout._defs, cd0.trace.uid);
+    var lineClip = contourPlot.createLineClip(lineContainer, clipLinesForLabels, gd, cd0.trace.uid);
 
     var labelGroup = plotgroup.selectAll('g.contourlabels')
         .data(showLabels ? [0] : []);
@@ -171,7 +182,7 @@ function makeLinesAndLabels(plotgroup, pathinfo, gd, cd0, contours, plotinfo, ca
         // invalidate the getTextLocation cache in case paths changed
         Lib.clearLocationCache();
 
-        var contourFormat = contourPlot.labelFormatter(contours, cd0.t.cb, gd._fullLayout);
+        var contourFormat = contourPlot.labelFormatter(gd, cd0);
 
         var dummyText = Drawing.tester.append('text')
             .attr('data-notex', 1)
@@ -295,8 +306,7 @@ function vectorTan(v0, v1) {
 
 function makeBackground(plotgroup, clipsegments, xaxis, yaxis, isConstraint, coloring) {
     var seg, xp, yp, i;
-    var bggroup = plotgroup.selectAll('g.contourbg').data([0]);
-    bggroup.enter().append('g').classed('contourbg', true);
+    var bggroup = Lib.ensureSingle(plotgroup, 'g', 'contourbg');
 
     var bgfill = bggroup.selectAll('path')
         .data((coloring === 'fill' && !isConstraint) ? [0] : []);
@@ -317,13 +327,15 @@ function makeBackground(plotgroup, clipsegments, xaxis, yaxis, isConstraint, col
 }
 
 function makeFills(trace, plotgroup, xa, ya, pathinfo, perimeter, ab2p, carpet, carpetcd, coloring, boundaryPath) {
-    var fillgroup = plotgroup.selectAll('g.contourfill')
-        .data([0]);
-    fillgroup.enter().append('g')
-        .classed('contourfill', true);
+    var hasFills = coloring === 'fill';
 
-    var fillitems = fillgroup.selectAll('path')
-        .data(coloring === 'fill' ? pathinfo : []);
+    // fills prefixBoundary in pathinfo items
+    if(hasFills) {
+        closeBoundaries(pathinfo, trace.contours);
+    }
+
+    var fillgroup = Lib.ensureSingle(plotgroup, 'g', 'contourfill');
+    var fillitems = fillgroup.selectAll('path').data(hasFills ? pathinfo : []);
     fillitems.enter().append('path');
     fillitems.exit().remove();
     fillitems.each(function(pi) {
@@ -332,11 +344,8 @@ function makeFills(trace, plotgroup, xa, ya, pathinfo, perimeter, ab2p, carpet, 
         // if the whole perimeter is above this level, start with a path
         // enclosing the whole thing. With all that, the parity should mean
         // that we always fill everything above the contour, nothing below
-        var fullpath = joinAllPaths(trace, pi, perimeter, ab2p, carpet, carpetcd, xa, ya);
-
-        if(pi.prefixBoundary) {
-            fullpath = boundaryPath + fullpath;
-        }
+        var fullpath = (pi.prefixBoundary ? boundaryPath : '') +
+            joinAllPaths(trace, pi, perimeter, ab2p, carpet, carpetcd, xa, ya);
 
         if(!fullpath) {
             d3.select(this).remove();
@@ -346,4 +355,125 @@ function makeFills(trace, plotgroup, xa, ya, pathinfo, perimeter, ab2p, carpet, 
                 .style('stroke', 'none');
         }
     });
+}
+
+function joinAllPaths(trace, pi, perimeter, ab2p, carpet, carpetcd, xa, ya) {
+    var i;
+    var fullpath = '';
+
+    var startsleft = pi.edgepaths.map(function(v, i) { return i; });
+    var newloop = true;
+    var endpt, newendpt, cnt, nexti, possiblei, addpath;
+
+    var atol = Math.abs(perimeter[0][0] - perimeter[2][0]) * 1e-4;
+    var btol = Math.abs(perimeter[0][1] - perimeter[2][1]) * 1e-4;
+
+    function istop(pt) { return Math.abs(pt[1] - perimeter[0][1]) < btol; }
+    function isbottom(pt) { return Math.abs(pt[1] - perimeter[2][1]) < btol; }
+    function isleft(pt) { return Math.abs(pt[0] - perimeter[0][0]) < atol; }
+    function isright(pt) { return Math.abs(pt[0] - perimeter[2][0]) < atol; }
+
+    function pathto(pt0, pt1) {
+        var i, j, segments, axis;
+        var path = '';
+
+        if((istop(pt0) && !isright(pt0)) || (isbottom(pt0) && !isleft(pt0))) {
+            axis = carpet.aaxis;
+            segments = axisAlignedLine(carpet, carpetcd, [pt0[0], pt1[0]], 0.5 * (pt0[1] + pt1[1]));
+        } else {
+            axis = carpet.baxis;
+            segments = axisAlignedLine(carpet, carpetcd, 0.5 * (pt0[0] + pt1[0]), [pt0[1], pt1[1]]);
+        }
+
+        for(i = 1; i < segments.length; i++) {
+            path += axis.smoothing ? 'C' : 'L';
+            for(j = 0; j < segments[i].length; j++) {
+                var pt = segments[i][j];
+                path += [xa.c2p(pt[0]), ya.c2p(pt[1])] + ' ';
+            }
+        }
+
+        return path;
+    }
+
+    i = 0;
+    endpt = null;
+    while(startsleft.length) {
+        var startpt = pi.edgepaths[i][0];
+
+        if(endpt) {
+            fullpath += pathto(endpt, startpt);
+        }
+
+        addpath = Drawing.smoothopen(pi.edgepaths[i].map(ab2p), pi.smoothing);
+        fullpath += newloop ? addpath : addpath.replace(/^M/, 'L');
+        startsleft.splice(startsleft.indexOf(i), 1);
+        endpt = pi.edgepaths[i][pi.edgepaths[i].length - 1];
+        nexti = -1;
+
+        // now loop through sides, moving our endpoint until we find a new start
+        for(cnt = 0; cnt < 4; cnt++) { // just to prevent infinite loops
+            if(!endpt) {
+                Lib.log('Missing end?', i, pi);
+                break;
+            }
+
+            if(istop(endpt) && !isright(endpt)) {
+                newendpt = perimeter[1]; // left top ---> right top
+            } else if(isleft(endpt)) {
+                newendpt = perimeter[0]; // left bottom ---> left top
+            } else if(isbottom(endpt)) {
+                newendpt = perimeter[3]; // right bottom
+            } else if(isright(endpt)) {
+                newendpt = perimeter[2]; // left bottom
+            }
+
+            for(possiblei = 0; possiblei < pi.edgepaths.length; possiblei++) {
+                var ptNew = pi.edgepaths[possiblei][0];
+                // is ptNew on the (horz. or vert.) segment from endpt to newendpt?
+                if(Math.abs(endpt[0] - newendpt[0]) < atol) {
+                    if(Math.abs(endpt[0] - ptNew[0]) < atol &&
+                            (ptNew[1] - endpt[1]) * (newendpt[1] - ptNew[1]) >= 0) {
+                        newendpt = ptNew;
+                        nexti = possiblei;
+                    }
+                } else if(Math.abs(endpt[1] - newendpt[1]) < btol) {
+                    if(Math.abs(endpt[1] - ptNew[1]) < btol &&
+                            (ptNew[0] - endpt[0]) * (newendpt[0] - ptNew[0]) >= 0) {
+                        newendpt = ptNew;
+                        nexti = possiblei;
+                    }
+                } else {
+                    Lib.log('endpt to newendpt is not vert. or horz.', endpt, newendpt, ptNew);
+                }
+            }
+
+            if(nexti >= 0) break;
+            fullpath += pathto(endpt, newendpt);
+            endpt = newendpt;
+        }
+
+        if(nexti === pi.edgepaths.length) {
+            Lib.log('unclosed perimeter path');
+            break;
+        }
+
+        i = nexti;
+
+        // if we closed back on a loop we already included,
+        // close it and start a new loop
+        newloop = (startsleft.indexOf(i) === -1);
+        if(newloop) {
+            i = startsleft[0];
+            fullpath += pathto(endpt, newendpt) + 'Z';
+            endpt = null;
+        }
+    }
+
+    // finally add the interior paths
+    for(i = 0; i < pi.paths.length; i++) {
+        fullpath += Drawing.smoothclosed(pi.paths[i].map(ab2p), pi.smoothing);
+    }
+
+    return fullpath;
 }

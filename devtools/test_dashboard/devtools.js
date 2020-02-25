@@ -179,7 +179,8 @@ searchBar.addEventListener('keyup', debounce(searchMocks, 250));
 function debounce(func, wait, immediate) {
     var timeout;
     return function() {
-        var context = this, args = arguments;
+        var context = this;
+        var args = arguments;
         var later = function() {
             timeout = null;
             if(!immediate) func.apply(context, args);
@@ -192,7 +193,6 @@ function debounce(func, wait, immediate) {
 }
 
 function searchMocks(e) {
-
     // Clear results.
     while(mocksList.firstChild) {
         mocksList.removeChild(mocksList.firstChild);
@@ -202,7 +202,7 @@ function searchMocks(e) {
 
     results.forEach(function(r) {
         var result = document.createElement('span');
-        result.className = 'search-result';
+        result.className = getResultClass(r.name);
         result.innerText = r.name;
 
         result.addEventListener('click', function() {
@@ -212,6 +212,10 @@ function searchMocks(e) {
             // Clear plots and plot selected.
             Tabs.purge();
             Tabs.plotMock(mockName);
+
+            mocksList.querySelectorAll('span').forEach(function(el) {
+                el.className = getResultClass(el.innerText);
+            });
         });
 
         mocksList.appendChild(result);
@@ -222,8 +226,16 @@ function searchMocks(e) {
     });
 }
 
+function getNameFromHash() {
+    return window.location.hash.replace(/^#/, '');
+}
+
+function getResultClass(name) {
+    return 'search-result' + (getNameFromHash() === name ? ' search-result__selected' : '');
+}
+
 function plotFromHash() {
-    var initialMock = window.location.hash.replace(/^#/, '');
+    var initialMock = getNameFromHash();
 
     if(initialMock.length > 0) {
         Tabs.plotMock(initialMock);

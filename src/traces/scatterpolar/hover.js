@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -9,10 +9,8 @@
 'use strict';
 
 var scatterHover = require('../scatter/hover');
-var Axes = require('../../plots/cartesian/axes');
-var Lib = require('../../lib');
 
-module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
+function hoverPoints(pointData, xval, yval, hovermode) {
     var scatterPointData = scatterHover(pointData, xval, yval, hovermode);
     if(!scatterPointData || scatterPointData[0].index === false) return;
 
@@ -25,40 +23,52 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
 
     var subplot = pointData.subplot;
     var cdi = newPointData.cd[newPointData.index];
+    var trace = newPointData.trace;
 
-    if(!subplot.isPtWithinSector(cdi)) return;
+    if(!subplot.isPtInside(cdi)) return;
 
     newPointData.xLabelVal = undefined;
     newPointData.yLabelVal = undefined;
+    makeHoverPointText(cdi, trace, subplot, newPointData);
+    newPointData.hovertemplate = trace.hovertemplate;
+    return scatterPointData;
+}
 
-    var trace = newPointData.trace;
+function makeHoverPointText(cdi, trace, subplot, pointData) {
     var radialAxis = subplot.radialAxis;
     var angularAxis = subplot.angularAxis;
-    var hoverinfo = cdi.hi || trace.hoverinfo;
-    var parts = hoverinfo.split('+');
-    var text = [];
-    var rad = angularAxis._c2rad(cdi.theta, trace.thetaunit);
-
     radialAxis._hovertitle = 'r';
     angularAxis._hovertitle = 'θ';
 
-    // show theta value in unit of angular axis
-    var theta;
-    if(angularAxis.type === 'linear' && trace.thetaunit !== angularAxis.thetaunit) {
-        theta = angularAxis.thetaunit === 'degrees' ? Lib.rad2deg(rad) : rad;
-    } else {
-        theta = cdi.theta;
-    }
+    var fullLayout = {};
+    fullLayout[trace.subplot] = {_subplot: subplot};
+    var labels = trace._module.formatLabels(cdi, trace, fullLayout);
+    pointData.rLabel = labels.rLabel;
+    pointData.thetaLabel = labels.thetaLabel;
 
+    var hoverinfo = cdi.hi || trace.hoverinfo;
+    var text = [];
     function textPart(ax, val) {
-        text.push(ax._hovertitle + ': ' + Axes.tickText(ax, val, 'hover').text);
+        text.push(ax._hovertitle + ': ' + val);
     }
 
-    if(parts.indexOf('all') !== -1) parts = ['r', 'theta'];
-    if(parts.indexOf('r') !== -1) textPart(radialAxis, radialAxis.c2r(cdi.r));
-    if(parts.indexOf('theta') !== -1) textPart(angularAxis, theta);
+    if(!trace.hovertemplate) {
+        var parts = hoverinfo.split('+');
 
-    newPointData.extraText = text.join('<br>');
+        if(parts.indexOf('all') !== -1) parts = ['r', 'theta', 'text'];
+        if(parts.indexOf('r') !== -1) textPart(radialAxis, pointData.rLabel);
+        if(parts.indexOf('theta') !== -1) textPart(angularAxis, pointData.thetaLabel);
 
-    return scatterPointData;
+        if(parts.indexOf('text') !== -1 && pointData.text) {
+            text.push(pointData.text);
+            delete pointData.text;
+        }
+
+        pointData.extraText = text.join('<br>');
+    }
+}
+
+module.exports = {
+    hoverPoints: hoverPoints,
+    makeHoverPointText: makeHoverPointText
 };

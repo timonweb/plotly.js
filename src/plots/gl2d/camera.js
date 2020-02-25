@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -13,6 +13,7 @@ var mouseChange = require('mouse-change');
 var mouseWheel = require('mouse-wheel');
 var mouseOffset = require('mouse-event-offset');
 var cartesianConstants = require('../cartesian/constants');
+var hasPassive = require('has-passive-events');
 
 module.exports = createCamera;
 
@@ -32,9 +33,9 @@ function Camera2D(element, plot) {
 
 
 function createCamera(scene) {
-    var element = scene.mouseContainer,
-        plot = scene.glplot,
-        result = new Camera2D(element, plot);
+    var element = scene.mouseContainer;
+    var plot = scene.glplot;
+    var result = new Camera2D(element, plot);
 
     function unSetAutoRange() {
         scene.xaxis.autorange = false;
@@ -63,22 +64,28 @@ function createCamera(scene) {
         var xy = mouseOffset(ev.changedTouches[0], element);
         handleInteraction(0, xy[0], xy[1]);
         handleInteraction(1, xy[0], xy[1]);
-    });
+
+        ev.preventDefault();
+    }, hasPassive ? {passive: false} : false);
     element.addEventListener('touchmove', function(ev) {
         ev.preventDefault();
         var xy = mouseOffset(ev.changedTouches[0], element);
         handleInteraction(1, xy[0], xy[1]);
-    });
-    element.addEventListener('touchend', function() {
+
+        ev.preventDefault();
+    }, hasPassive ? {passive: false} : false);
+    element.addEventListener('touchend', function(ev) {
         handleInteraction(0, result.lastPos[0], result.lastPos[1]);
-    });
+
+        ev.preventDefault();
+    }, hasPassive ? {passive: false} : false);
 
     function handleInteraction(buttons, x, y) {
-        var dataBox = scene.calcDataBox(),
-            viewBox = plot.viewBox;
+        var dataBox = scene.calcDataBox();
+        var viewBox = plot.viewBox;
 
-        var lastX = result.lastPos[0],
-            lastY = result.lastPos[1];
+        var lastX = result.lastPos[0];
+        var lastY = result.lastPos[1];
 
         var MINDRAG = cartesianConstants.MINDRAG * plot.pixelRatio;
         var MINZOOM = cartesianConstants.MINZOOM * plot.pixelRatio;
@@ -92,16 +99,15 @@ function createCamera(scene) {
         y = (viewBox[3] - viewBox[1]) - y;
 
         function updateRange(i0, start, end) {
-            var range0 = Math.min(start, end),
-                range1 = Math.max(start, end);
+            var range0 = Math.min(start, end);
+            var range1 = Math.max(start, end);
 
             if(range0 !== range1) {
                 dataBox[i0] = range0;
                 dataBox[i0 + 2] = range1;
                 result.dataBox = dataBox;
                 scene.setRanges(dataBox);
-            }
-            else {
+            } else {
                 scene.selectBox.selectBox = [0, 0, 1, 1];
                 scene.glplot.setDirty();
             }
@@ -158,14 +164,12 @@ function createCamera(scene) {
                                 result.boxEnd[1] = dataBox[1];
                                 result.boxEnd[0] = result.boxStart[0] +
                                     (dataBox[1] - result.boxStart[1]) / Math.abs(dydx);
-                            }
-                            else if(result.boxEnd[1] > dataBox[3]) {
+                            } else if(result.boxEnd[1] > dataBox[3]) {
                                 result.boxEnd[1] = dataBox[3];
                                 result.boxEnd[0] = result.boxStart[0] +
                                     (dataBox[3] - result.boxStart[1]) / Math.abs(dydx);
                             }
-                        }
-                        else {
+                        } else {
                             result.boxEnd[0] = result.boxStart[0] +
                                 Math.abs(dy) / dydx * (dx >= 0 ? 1 : -1);
 
@@ -173,21 +177,19 @@ function createCamera(scene) {
                                 result.boxEnd[0] = dataBox[0];
                                 result.boxEnd[1] = result.boxStart[1] +
                                     (dataBox[0] - result.boxStart[0]) * Math.abs(dydx);
-                            }
-                            else if(result.boxEnd[0] > dataBox[2]) {
+                            } else if(result.boxEnd[0] > dataBox[2]) {
                                 result.boxEnd[0] = dataBox[2];
                                 result.boxEnd[1] = result.boxStart[1] +
                                     (dataBox[2] - result.boxStart[0]) * Math.abs(dydx);
                             }
                         }
-                    }
-                    // otherwise clamp small changes to the origin so we get 1D zoom
-                    else {
+                    } else {
+                        // otherwise clamp small changes to the origin so we get 1D zoom
+
                         if(smallDx) result.boxEnd[0] = result.boxStart[0];
                         if(smallDy) result.boxEnd[1] = result.boxStart[1];
                     }
-                }
-                else if(result.boxEnabled) {
+                } else if(result.boxEnabled) {
                     dx = result.boxStart[0] !== result.boxEnd[0];
                     dy = result.boxStart[1] !== result.boxEnd[1];
                     if(dx || dy) {
@@ -200,15 +202,14 @@ function createCamera(scene) {
                             scene.yaxis.autorange = false;
                         }
                         scene.relayoutCallback();
-                    }
-                    else {
+                    } else {
                         scene.glplot.setDirty();
                     }
                     result.boxEnabled = false;
                     result.boxInited = false;
-                }
-                // if box was inited but button released then - reset the box
-                else if(result.boxInited) {
+                } else if(result.boxInited) {
+                    // if box was inited but button released then - reset the box
+
                     result.boxInited = false;
                 }
                 break;
@@ -243,8 +244,7 @@ function createCamera(scene) {
                     unSetAutoRange();
                     scene.cameraChanged();
                     scene.handleAnnotations();
-                }
-                else if(result.panning) {
+                } else if(result.panning) {
                     result.panning = false;
                     scene.relayoutCallback();
                 }
@@ -258,11 +258,11 @@ function createCamera(scene) {
     result.wheelListener = mouseWheel(element, function(dx, dy) {
         if(!scene.scrollZoom) return false;
 
-        var dataBox = scene.calcDataBox(),
-            viewBox = plot.viewBox;
+        var dataBox = scene.calcDataBox();
+        var viewBox = plot.viewBox;
 
-        var lastX = result.lastPos[0],
-            lastY = result.lastPos[1];
+        var lastX = result.lastPos[0];
+        var lastY = result.lastPos[1];
 
         var scale = Math.exp(5.0 * dy / (viewBox[3] - viewBox[1]));
 
@@ -287,7 +287,7 @@ function createCamera(scene) {
         scene.relayoutCallback();
 
         return true;
-    });
+    }, true);
 
     return result;
 }

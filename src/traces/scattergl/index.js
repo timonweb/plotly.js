@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -8,29 +8,31 @@
 
 'use strict';
 
-var ScatterGl = {};
+var hover = require('./hover');
 
-ScatterGl.attributes = require('./attributes');
-ScatterGl.supplyDefaults = require('./defaults');
-ScatterGl.colorbar = require('../scatter/colorbar');
-ScatterGl.hoverPoints = require('../scatter/hover');
+module.exports = {
+    moduleType: 'trace',
+    name: 'scattergl',
+    basePlotModule: require('../../plots/cartesian'),
+    categories: ['gl', 'regl', 'cartesian', 'symbols', 'errorBarsOK', 'showLegend', 'scatter-like'],
 
-// reuse the Scatter3D 'dummy' calc step so that legends know what to do
-ScatterGl.calc = require('./calc');
-ScatterGl.plot = require('./convert');
-ScatterGl.selectPoints = require('./select');
+    attributes: require('./attributes'),
+    supplyDefaults: require('./defaults'),
+    crossTraceDefaults: require('../scatter/cross_trace_defaults'),
+    colorbar: require('../scatter/marker_colorbar'),
+    formatLabels: require('./format_labels'),
+    calc: require('./calc'),
+    plot: require('./plot'),
+    hoverPoints: hover.hoverPoints,
+    selectPoints: require('./select'),
 
-ScatterGl.moduleType = 'trace';
-ScatterGl.name = 'scattergl';
-ScatterGl.basePlotModule = require('../../plots/gl2d');
-ScatterGl.categories = ['gl', 'gl2d', 'symbols', 'errorBarsOK', 'markerColorscale', 'showLegend', 'scatter-like'];
-ScatterGl.meta = {
-    description: [
-        'The data visualized as scatter point or lines is set in `x` and `y`',
-        'using the WebGl plotting engine.',
-        'Bubble charts are achieved by setting `marker.size` and/or `marker.color`',
-        'to a numerical arrays.'
-    ].join(' ')
+    meta: {
+        hrName: 'scatter_gl',
+        description: [
+            'The data visualized as scatter point or lines is set in `x` and `y`',
+            'using the WebGL plotting engine.',
+            'Bubble charts are achieved by setting `marker.size` and/or `marker.color`',
+            'to a numerical arrays.'
+        ].join(' ')
+    }
 };
-
-module.exports = ScatterGl;

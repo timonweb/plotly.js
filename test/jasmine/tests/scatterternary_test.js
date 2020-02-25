@@ -5,9 +5,13 @@ var ScatterTernary = require('@src/traces/scatterternary');
 var d3 = require('d3');
 var createGraphDiv = require('../assets/create_graph_div');
 var destroyGraphDiv = require('../assets/destroy_graph_div');
-var fail = require('../assets/fail_test');
+var failTest = require('../assets/fail_test');
 var customAssertions = require('../assets/custom_assertions');
 var supplyAllDefaults = require('../assets/supply_defaults');
+
+var mouseEvent = require('../assets/mouse_event');
+var assertHoverLabelContent = customAssertions.assertHoverLabelContent;
+var checkTextTemplate = require('../assets/check_texttemplate');
 
 var assertClip = customAssertions.assertClip;
 var assertNodeDisplay = customAssertions.assertNodeDisplay;
@@ -19,8 +23,8 @@ describe('scatterternary defaults', function() {
 
     var traceIn, traceOut;
 
-    var defaultColor = '#444',
-        layout = {};
+    var defaultColor = '#444';
+    var layout = {};
 
     beforeEach(function() {
         traceOut = {};
@@ -101,7 +105,8 @@ describe('scatterternary defaults', function() {
         expect(traceOut.visible).toBe(false);
     });
 
-    it('should truncate data arrays to the same length (\'c\' is shortest case)', function() {
+    it('should not truncate data arrays to the same length (\'c\' is shortest case)', function() {
+        // this is handled at the calc step now via _length.
         traceIn = {
             a: [1, 2, 3],
             b: [1, 2],
@@ -109,12 +114,14 @@ describe('scatterternary defaults', function() {
         };
 
         supplyDefaults(traceIn, traceOut, defaultColor, layout);
-        expect(traceOut.a).toEqual([1]);
-        expect(traceOut.b).toEqual([1]);
+        expect(traceOut.a).toEqual([1, 2, 3]);
+        expect(traceOut.b).toEqual([1, 2]);
         expect(traceOut.c).toEqual([1]);
+        expect(traceOut._length).toBe(1);
     });
 
-    it('should truncate data arrays to the same length (\'a\' is shortest case)', function() {
+    it('should not truncate data arrays to the same length (\'a\' is shortest case)', function() {
+        // this is handled at the calc step now via _length.
         traceIn = {
             a: [1],
             b: [1, 2, 3],
@@ -123,11 +130,13 @@ describe('scatterternary defaults', function() {
 
         supplyDefaults(traceIn, traceOut, defaultColor, layout);
         expect(traceOut.a).toEqual([1]);
-        expect(traceOut.b).toEqual([1]);
-        expect(traceOut.c).toEqual([1]);
+        expect(traceOut.b).toEqual([1, 2, 3]);
+        expect(traceOut.c).toEqual([1, 2]);
+        expect(traceOut._length).toBe(1);
     });
 
-    it('should truncate data arrays to the same length (\'a\' is shortest case)', function() {
+    it('should not truncate data arrays to the same length (\'a\' is shortest case)', function() {
+        // this is handled at the calc step now via _length.
         traceIn = {
             a: [1, 2],
             b: [1],
@@ -135,9 +144,25 @@ describe('scatterternary defaults', function() {
         };
 
         supplyDefaults(traceIn, traceOut, defaultColor, layout);
-        expect(traceOut.a).toEqual([1]);
+        expect(traceOut.a).toEqual([1, 2]);
         expect(traceOut.b).toEqual([1]);
-        expect(traceOut.c).toEqual([1]);
+        expect(traceOut.c).toEqual([1, 2, 3]);
+        expect(traceOut._length).toBe(1);
+    });
+
+    it('is set visible: false if a, b, or c is empty', function() {
+        var trace0 = {
+            a: [1, 2],
+            b: [2, 1],
+            c: [2, 2]
+        };
+
+        ['a', 'b', 'c'].forEach(function(letter) {
+            traceIn = Lib.extendDeep({}, trace0);
+            traceIn[letter] = [];
+            supplyDefaults(traceIn, traceOut, defaultColor, layout);
+            expect(traceOut.visible).toBe(false, letter);
+        });
     });
 
     it('should include \'name\' in \'hoverinfo\' default if multi trace graph', function() {
@@ -218,32 +243,39 @@ describe('scatterternary calc', function() {
 
         trace = {
             subplot: 'ternary',
-            sum: 1
+            sum: 1,
+            _length: 3
         };
     });
+
+    function get(cd, component) {
+        return cd.map(function(v) {
+            return v[component];
+        });
+    }
 
     it('should fill in missing component (case \'c\')', function() {
         trace.a = [0.1, 0.3, 0.6];
         trace.b = [0.3, 0.6, 0.1];
 
-        calc(gd, trace);
-        expect(trace.c).toBeCloseToArray([0.6, 0.1, 0.3]);
+        cd = calc(gd, trace);
+        expect(get(cd, 'c')).toBeCloseToArray([0.6, 0.1, 0.3]);
     });
 
     it('should fill in missing component (case \'b\')', function() {
         trace.a = [0.1, 0.3, 0.6];
         trace.c = [0.1, 0.3, 0.2];
 
-        calc(gd, trace);
-        expect(trace.b).toBeCloseToArray([0.8, 0.4, 0.2]);
+        cd = calc(gd, trace);
+        expect(get(cd, 'b')).toBeCloseToArray([0.8, 0.4, 0.2]);
     });
 
     it('should fill in missing component (case \'a\')', function() {
         trace.b = [0.1, 0.3, 0.6];
         trace.c = [0.8, 0.4, 0.1];
 
-        calc(gd, trace);
-        expect(trace.a).toBeCloseToArray([0.1, 0.3, 0.3]);
+        cd = calc(gd, trace);
+        expect(get(cd, 'a')).toBeCloseToArray([0.1, 0.3, 0.3]);
     });
 
     it('should skip over non-numeric values', function() {
@@ -265,7 +297,6 @@ describe('scatterternary calc', function() {
             return obj[k];
         });
     }
-
 });
 
 describe('scatterternary plot and hover', function() {
@@ -306,9 +337,17 @@ describe('scatterternary hover', function() {
 
     var gd;
 
+    function check(pos, content) {
+        mouseEvent('mousemove', pos[0], pos[1]);
+
+        assertHoverLabelContent({
+            nums: content[0],
+            name: content[1]
+        });
+    }
+
     beforeAll(function(done) {
         gd = createGraphDiv();
-
         var data = [{
             type: 'scatterternary',
             a: [0.1, 0.2, 0.3],
@@ -316,7 +355,6 @@ describe('scatterternary hover', function() {
             c: [0.1, 0.4, 0.5],
             text: ['A', 'B', 'C']
         }];
-
         Plotly.plot(gd, data).then(done);
     });
 
@@ -370,9 +408,47 @@ describe('scatterternary hover', function() {
             expect(scatterPointData[0].yLabelVal).toBeUndefined();
             expect(scatterPointData[0].text).toEqual('orange');
         })
+        .catch(failTest)
         .then(done);
     });
 
+    it('should pass along hovertemplate on hover', function(done) {
+        var xval = 0.42;
+        var yval = 0.37;
+        var hovermode = 'closest';
+        var scatterPointData;
+        Plotly.restyle(gd, {
+            hovertemplate: 'tpl'
+        })
+        .then(function() {
+            scatterPointData = _hover(gd, xval, yval, hovermode);
+            expect(scatterPointData[0].hovertemplate).toEqual('tpl');
+            expect(scatterPointData[0].aLabel).toBe('0.3333333');
+            expect(scatterPointData[0].bLabel).toBe('0.1111111');
+            expect(scatterPointData[0].cLabel).toBe('0.5555556');
+        })
+        .catch(failTest)
+        .then(done);
+    });
+
+    it('should always display hoverlabel when hovertemplate is defined', function(done) {
+        var fig = Lib.extendDeep({}, require('@mocks/ternary_simple.json'));
+
+        Plotly.newPlot(gd, fig)
+        .then(function() {
+            return Plotly.restyle(gd, {
+                hovertemplate: '%{a}, %{b}, %{c}',
+                name: '',
+                text: null,
+                hovertext: null
+            });
+        })
+        .then(function() {
+            check([380, 210], ['0.5, 0.25, 0.25']);
+        })
+        .catch(failTest)
+        .then(done);
+    });
 });
 
 describe('Test scatterternary *cliponaxis*', function() {
@@ -475,7 +551,43 @@ describe('Test scatterternary *cliponaxis*', function() {
                 [true, 1]
            );
         })
-        .catch(fail)
+        .catch(failTest)
         .then(done);
     });
+});
+
+describe('Test scatterternary texttemplate:', function() {
+    checkTextTemplate([{
+        'type': 'scatterternary',
+        'a': [3, 2, 5],
+        'b': [2, 5, 2],
+        'c': [5, 2, 2 ],
+        'mode': 'markers+text',
+        'text': ['A', 'B', 'C']
+    }], 'g.textpoint', [
+        ['%{text} (%{a:.1f}, %{b:.1f}, %{c:.1f})', ['A (3.0, 2.0, 5.0)', 'B (2.0, 5.0, 2.0)', 'C (5.0, 2.0, 2.0)']]
+    ]);
+
+    checkTextTemplate({
+        data: [{
+            type: 'scatterternary',
+            mode: 'text',
+            a: [3, 2, 5],
+            b: [2, 5, 2],
+            c: [5, 2, 2]
+        }],
+        layout: {
+            ternary: {
+                aaxis: { tickprefix: '*', ticksuffix: '*' },
+                baxis: { tickprefix: '$', ticksuffix: ' !', tickformat: '.2f'},
+                caxis: { tickprefix: '#', ticksuffix: '^'}
+            }
+        }
+    }, '.textpoint', [
+        ['%{a} is %{b} is %{c}', [
+            '*0.3* is $0.20 ! is #0.5^',
+            '*0.2222222* is $0.56 ! is #0.2222222^',
+            '*0.5555556* is $0.22 ! is #0.2222222^'
+        ]]
+    ]);
 });

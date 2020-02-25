@@ -1,102 +1,51 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
 * LICENSE file in the root directory of this source tree.
 */
 
-
 'use strict';
 
-var Axes = require('../../plots/cartesian/axes');
-var extendFlat = require('../../lib').extendFlat;
-var heatmapCalc = require('../heatmap/calc');
+var Colorscale = require('../../components/colorscale');
 
+var heatmapCalc = require('../heatmap/calc');
+var setContours = require('./set_contours');
+var endPlus = require('./end_plus');
 
 // most is the same as heatmap calc, then adjust it
 // though a few things inside heatmap calc still look for
 // contour maps, because the makeBoundArray calls are too entangled
 module.exports = function calc(gd, trace) {
-    var cd = heatmapCalc(gd, trace),
-        contours = trace.contours;
+    var cd = heatmapCalc(gd, trace);
 
-    // check if we need to auto-choose contour levels
-    if(trace.autocontour !== false) {
-        var dummyAx = autoContours(trace.zmin, trace.zmax, trace.ncontours);
+    var zOut = cd[0].z;
+    setContours(trace, zOut);
 
-        contours.size = dummyAx.dtick;
+    var contours = trace.contours;
+    var cOpts = Colorscale.extractOpts(trace);
+    var cVals;
 
-        contours.start = Axes.tickFirst(dummyAx);
-        dummyAx.range.reverse();
-        contours.end = Axes.tickFirst(dummyAx);
+    if(contours.coloring === 'heatmap' && cOpts.auto && trace.autocontour === false) {
+        var start = contours.start;
+        var end = endPlus(contours);
+        var cs = contours.size || 1;
+        var nc = Math.floor((end - start) / cs) + 1;
 
-        if(contours.start === trace.zmin) contours.start += contours.size;
-        if(contours.end === trace.zmax) contours.end -= contours.size;
-
-        // if you set a small ncontours, *and* the ends are exactly on zmin/zmax
-        // there's an edge case where start > end now. Make sure there's at least
-        // one meaningful contour, put it midway between the crossed values
-        if(contours.start > contours.end) {
-            contours.start = contours.end = (contours.start + contours.end) / 2;
+        if(!isFinite(cs)) {
+            cs = 1;
+            nc = 1;
         }
 
-        // copy auto-contour info back to the source data.
-        // previously we copied the whole contours object back, but that had
-        // other info (coloring, showlines) that should be left to supplyDefaults
-        if(!trace._input.contours) trace._input.contours = {};
-        extendFlat(trace._input.contours, {
-            start: contours.start,
-            end: contours.end,
-            size: contours.size
-        });
-        trace._input.autocontour = true;
+        var min0 = start - cs / 2;
+        var max0 = min0 + nc * cs;
+        cVals = [min0, max0];
+    } else {
+        cVals = zOut;
     }
-    else {
-        // sanity checks on manually-supplied start/end/size
-        var start = contours.start,
-            end = contours.end,
-            inputContours = trace._input.contours;
 
-        if(start > end) {
-            contours.start = inputContours.start = end;
-            end = contours.end = inputContours.end = start;
-            start = contours.start;
-        }
-
-        if(!(contours.size > 0)) {
-            var sizeOut;
-            if(start === end) sizeOut = 1;
-            else sizeOut = autoContours(start, end, trace.ncontours).dtick;
-
-            inputContours.size = contours.size = sizeOut;
-        }
-    }
+    Colorscale.calc(gd, trace, {vals: cVals, cLetter: 'z'});
 
     return cd;
 };
-
-/*
- * autoContours: make a dummy axis object with dtick we can use
- * as contours.size, and if needed we can use Axes.tickFirst
- * with this axis object to calculate the start and end too
- *
- * start: the value to start the contours at
- * end: the value to end at (must be > start)
- * ncontours: max number of contours to make, like roughDTick
- *
- * returns: an axis object
- */
-function autoContours(start, end, ncontours) {
-    var dummyAx = {
-        type: 'linear',
-        range: [start, end]
-    };
-
-    Axes.autoTicks(
-        dummyAx,
-        (end - start) / (ncontours || 15)
-    );
-
-    return dummyAx;
-}

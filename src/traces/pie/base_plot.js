@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -8,38 +8,14 @@
 
 'use strict';
 
-var Registry = require('../../registry');
-
+var plots = require('../../plots/plots');
 
 exports.name = 'pie';
 
-exports.plot = function(gd) {
-    var Pie = Registry.getModule('pie');
-    var cdPie = getCdModule(gd.calcdata, Pie);
-
-    if(cdPie.length) Pie.plot(gd, cdPie);
+exports.plot = function(gd, traces, transitionOpts, makeOnCompleteCallback) {
+    plots.plotBasePlot(exports.name, gd, traces, transitionOpts, makeOnCompleteCallback);
 };
 
 exports.clean = function(newFullData, newFullLayout, oldFullData, oldFullLayout) {
-    var hadPie = (oldFullLayout._has && oldFullLayout._has('pie'));
-    var hasPie = (newFullLayout._has && newFullLayout._has('pie'));
-
-    if(hadPie && !hasPie) {
-        oldFullLayout._pielayer.selectAll('g.trace').remove();
-    }
+    plots.cleanBasePlot(exports.name, newFullData, newFullLayout, oldFullData, oldFullLayout);
 };
-
-function getCdModule(calcdata, _module) {
-    var cdModule = [];
-
-    for(var i = 0; i < calcdata.length; i++) {
-        var cd = calcdata[i];
-        var trace = cd[0].trace;
-
-        if((trace._module === _module) && (trace.visible === true)) {
-            cdModule.push(cd);
-        }
-    }
-
-    return cdModule;
-}

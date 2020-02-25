@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2018, Plotly, Inc.
+* Copyright 2012-2020, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -9,8 +9,10 @@
 'use strict';
 
 var scatterAttrs = require('../scatter/attributes');
-var colorAttributes = require('../../components/colorscale/color_attributes');
-var errorBarAttrs = require('../../components/errorbars/attributes');
+var colorAttributes = require('../../components/colorscale/attributes');
+var hovertemplateAttrs = require('../../plots/template_attributes').hovertemplateAttrs;
+var texttemplateAttrs = require('../../plots/template_attributes').texttemplateAttrs;
+var baseAttrs = require('../../plots/attributes');
 var DASHES = require('../../constants/gl3d_dashes');
 
 var MARKER_SYMBOLS = require('../../constants/gl3d_markers');
@@ -20,6 +22,17 @@ var overrideAll = require('../../plot_api/edit_types').overrideAll;
 var scatterLineAttrs = scatterAttrs.line;
 var scatterMarkerAttrs = scatterAttrs.marker;
 var scatterMarkerLineAttrs = scatterMarkerAttrs.line;
+
+var lineAttrs = extendFlat({
+    width: scatterLineAttrs.width,
+    dash: {
+        valType: 'enumerated',
+        values: Object.keys(DASHES),
+        dflt: 'solid',
+        role: 'style',
+        description: 'Sets the dash style of the lines.'
+    }
+}, colorAttributes('line'));
 
 function makeProjectionAttr(axLetter) {
     return {
@@ -73,6 +86,9 @@ var attrs = module.exports = overrideAll({
             'these elements will be seen in the hover labels.'
         ].join(' ')
     }),
+    texttemplate: texttemplateAttrs({}, {
+
+    }),
     hovertext: extendFlat({}, scatterAttrs.hovertext, {
         description: [
             'Sets text elements associated with each (x,y,z) triplet.',
@@ -83,6 +99,7 @@ var attrs = module.exports = overrideAll({
             'To be seen, trace `hoverinfo` must contain a *text* flag.'
         ].join(' ')
     }),
+    hovertemplate: hovertemplateAttrs(),
 
     mode: extendFlat({}, scatterAttrs.mode,  // shouldn't this be on-par with 2D?
         {dflt: 'lines+markers'}),
@@ -107,28 +124,10 @@ var attrs = module.exports = overrideAll({
         y: makeProjectionAttr('y'),
         z: makeProjectionAttr('z')
     },
+
     connectgaps: scatterAttrs.connectgaps,
-    line: extendFlat({
-        width: scatterLineAttrs.width,
-        dash: {
-            valType: 'enumerated',
-            values: Object.keys(DASHES),
-            dflt: 'solid',
-            role: 'style',
-            description: 'Sets the dash style of the lines.'
-        },
-        showscale: {
-            valType: 'boolean',
-            role: 'info',
-            dflt: false,
-            description: [
-                'Has an effect only if `line.color` is set to a numerical array.',
-                'Determines whether or not a colorbar is displayed.'
-            ].join(' ')
-        }
-    },
-        colorAttributes('line')
-    ),
+    line: lineAttrs,
+
     marker: extendFlat({  // Parity with scatter.js?
         symbol: {
             valType: 'enumerated',
@@ -153,7 +152,6 @@ var attrs = module.exports = overrideAll({
                 'to an rgba color and use its alpha channel.'
             ].join(' ')
         }),
-        showscale: scatterMarkerAttrs.showscale,
         colorbar: scatterMarkerAttrs.colorbar,
 
         line: extendFlat({
@@ -166,11 +164,13 @@ var attrs = module.exports = overrideAll({
     ),
 
     textposition: extendFlat({}, scatterAttrs.textposition, {dflt: 'top center'}),
-    textfont: scatterAttrs.textfont,
+    textfont: {
+        color: scatterAttrs.textfont.color,
+        size: scatterAttrs.textfont.size,
+        family: extendFlat({}, scatterAttrs.textfont.family, {arrayOk: false})
+    },
 
-    error_x: errorBarAttrs,
-    error_y: errorBarAttrs,
-    error_z: errorBarAttrs,
+    hoverinfo: extendFlat({}, baseAttrs.hoverinfo)
 }, 'calc', 'nested');
 
 attrs.x.editType = attrs.y.editType = attrs.z.editType = 'calc+clearAxisTypes';
